@@ -1,0 +1,24 @@
+sources:
+  - name: "Steam Blog"
+    url: "https://store.steampowered.com/feeds/news.xml"
+    language: "en"
+
+  - name: "PC Gamer"
+    url: "https://www.pcgamer.com/rss/"
+    language: "en"
+
+  - name: "游民星空"
+    url: "https://www.gamersky.com/rss/news"
+    language: "zh"
+
+  - name: "3DMGame"
+    url: "https://www.3dmgame.com/php/async/get_rss.php?type=news"
+    language: "zh"
+
+  - name: "机核"
+    url: "https://www.gcores.com/rss"
+    language: "zh"
+
+  - name: "IGN"
+    url: "https://feeds.feedburner.com/ign/all"
+    language: "en"

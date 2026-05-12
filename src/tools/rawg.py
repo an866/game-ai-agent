@@ -1,0 +1,145 @@
+"""RAWG API 工具 —— 游戏元数据、截图、推荐"""
+
+from typing import Any
+import httpx
+from config.settings import get_settings
+from src.tools.base import GameDataTool
+
+settings = get_settings()
+
+
+class RAWGGameSearchTool(GameDataTool):
+    """搜索 RAWG 游戏数据库"""
+    name: str = "rawg_search_game"
+    description: str = "在 RAWG 游戏数据库中搜索游戏，返回游戏 ID、名称、评分、类型等。输入为游戏名称。"
+    cache_ttl: int = 600
+
+    async def _arun(self, query: str, page: int = 1) -> Any:
+        return await self._cached_call(self._search, query, page)
+
+    async def _search(self, query: str, page: int = 1) -> list[dict]:
+        url = "https://api.rawg.io/api/games"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                url,
+                params={
+                    "key": settings.rawg_api_key,
+                    "search": query,
+                    "page": page,
+                    "page_size": 10,
+                },
+                timeout=self.request_timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return [
+                {
+                    "id": game["id"],
+                    "name": game["name"],
+                    "slug": game["slug"],
+                    "rating": game.get("rating"),
+                    "released": game.get("released"),
+                    "genres": [g["name"] for g in game.get("genres", [])],
+                    "platforms": [p["platform"]["name"] for p in game.get("platforms", [])],
+                    "background_image": game.get("background_image"),
+                    "metacritic": game.get("metacritic"),
+                }
+                for game in data.get("results", [])
+            ]
+
+
+class RAWGGameDetailTool(GameDataTool):
+    """获取 RAWG 游戏详细信息"""
+    name: str = "rawg_get_details"
+    description: str = "通过 RAWG 游戏 ID 获取详细游戏信息。输入为 RAWG 游戏 ID（整数）。"
+    cache_ttl: int = 1800
+
+    async def _arun(self, game_id: int) -> Any:
+        return await self._cached_call(self._get_details, game_id)
+
+    async def _get_details(self, game_id: int) -> dict:
+        url = f"https://api.rawg.io/api/games/{game_id}"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                url,
+                params={"key": settings.rawg_api_key},
+                timeout=self.request_timeout,
+            )
+            resp.raise_for_status()
+            game = resp.json()
+            return {
+                "id": game["id"],
+                "name": game["name"],
+                "slug": game["slug"],
+                "description": game.get("description_raw", "")[:1000],
+                "rating": game.get("rating"),
+                "rating_count": game.get("ratings_count"),
+                "released": game.get("released"),
+                "genres": [g["name"] for g in game.get("genres", [])],
+                "platforms": [p["platform"]["name"] for p in game.get("platforms", [])],
+                "developers": [d["name"] for d in game.get("developers", [])],
+                "publishers": [p["name"] for p in game.get("publishers", [])],
+                "tags": [t["name"] for t in game.get("tags", [])[:15]],
+                "background_image": game.get("background_image"),
+                "website": game.get("website"),
+                "metacritic": game.get("metacritic"),
+                "metacritic_url": game.get("metacritic_url"),
+            }
+
+
+class RAWGGameScreenshotsTool(GameDataTool):
+    """获取 RAWG 游戏截图"""
+    name: str = "rawg_get_screenshots"
+    description: str = "获取游戏的截图列表。输入为 RAWG 游戏 ID（整数）。"
+    cache_ttl: int = 3600
+
+    async def _arun(self, game_id: int) -> Any:
+        return await self._cached_call(self._get_screenshots, game_id)
+
+    async def _get_screenshots(self, game_id: int) -> list[dict]:
+        url = f"https://api.rawg.io/api/games/{game_id}/screenshots"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                url,
+                params={"key": settings.rawg_api_key},
+                timeout=self.request_timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return [
+                {"id": s["id"], "image": s["image"]}
+                for s in data.get("results", [])[:10]
+            ]
+
+
+class RAWGGameRecommendationsTool(GameDataTool):
+    """获取 RAWG 相似游戏推荐"""
+    name: str = "rawg_get_recommendations"
+    description: str = "根据 RAWG 游戏 ID 获取相似游戏推荐。输入为 RAWG 游戏 ID（整数）。"
+    cache_ttl: int = 3600
+
+    async def _arun(self, game_id: int) -> Any:
+        return await self._cached_call(self._get_suggested, game_id)
+
+    async def _get_suggested(self, game_id: int) -> list[dict]:
+        url = f"https://api.rawg.io/api/games/{game_id}/suggested"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                url,
+                params={"key": settings.rawg_api_key},
+                timeout=self.request_timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return [
+                {
+                    "id": game["id"],
+                    "name": game["name"],
+                    "rating": game.get("rating"),
+                    "released": game.get("released"),
+                    "genres": [g["name"] for g in game.get("genres", [])],
+                    "background_image": game.get("background_image"),
+                    "suggested_count": game.get("suggestions_count"),
+                }
+                for game in data.get("results", [])[:5]
+            ]
