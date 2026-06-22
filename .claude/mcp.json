@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "web-search": {
+      "command": "C:/Users/AN/AppData/Local/Programs/Python/Python314/python.exe",
+      "args": ["-m", "src.mcp.web_search_server"],
+      "env": {
+        "TAVILY_API_KEY": "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",
+        "PYTHONPATH": "D:/ClaudeAI/game-ai-agent"
+      }
+    }
+  }
+}
