@@ -107,10 +107,29 @@ with tab2:
                 with col4:
                     st.caption(item['created_at'])
                 with col5:
-                    if st.button("删除", key=f"del_{item['id']}"):
-                        run_async_safe(delete_item(item['id']))
-                        _load_watchlist.clear()
-                        st.rerun()
+                    delete_key = f"confirm_del_{item['id']}"
+                    if delete_key not in st.session_state:
+                        st.session_state[delete_key] = False
+
+                    if st.button("删除", key=f"btn_{item['id']}"):
+                        st.session_state[delete_key] = True
+
+                    if st.session_state.get(delete_key):
+                        @st.dialog(f"确认删除")
+                        def confirm_del():
+                            st.warning(f"确定要移除 **{item['game_name']}** 的监控吗？")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.button("确认删除", type="primary", use_container_width=True):
+                                    run_async_safe(delete_item(item['id']))
+                                    _load_watchlist.clear()
+                                    st.session_state[delete_key] = False
+                                    st.rerun()
+                            with c2:
+                                if st.button("取消", use_container_width=True):
+                                    st.session_state[delete_key] = False
+                                    st.rerun()
+                        confirm_del()
                 st.divider()
         else:
             st.info("暂无监控项目")
