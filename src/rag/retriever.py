@@ -1,28 +1,58 @@
 """新闻检索器 —— 支持语义搜索和混合检索"""
 
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
+
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
 from src.rag.store import get_retriever, get_vector_store
 
 
+def _parse_rss_date(date_str: str) -> str:
+    """将 RSS 日期字符串转为 ISO 格式，用于 ChromaDB 元数据过滤。
+    解析失败时返回原始字符串。"""
+    if not date_str:
+        return ""
+    try:
+        dt = parsedate_to_datetime(date_str)
+        return dt.isoformat()
+    except (ValueError, TypeError):
+        return date_str
+
+
 async def search_news(
     query: str,
     k: int = 5,
-    game_filter: str | None = None,
     source_filter: str | None = None,
+    game_filter: str | None = None,
+    days_filter: int | None = None,
 ) -> list[Document]:
-    """搜索新闻 —— 语义检索 + 可选过滤"""
-    retriever = get_retriever(k=k, fetch_k=20)
+    """搜索新闻 —— MMR 语义检索 + 可选来源/游戏/时间过滤"""
+    from src.rag.store import get_retriever, get_vector_store
+    from datetime import datetime, timedelta
 
-    search_kwargs = {"k": k, "fetch_k": 20}
+    filter_conditions: list[dict] = []
 
-    filters = {}
-    if game_filter:
-        filters["game_tags"] = game_filter
     if source_filter:
-        filters["source_name"] = source_filter
-    if filters:
-        search_kwargs["filter"] = filters
+        filter_conditions.append({"source_name": source_filter})
+    if game_filter:
+        filter_conditions.append({"game_name": game_filter})
+    if days_filter:
+        cutoff = (datetime.now() - timedelta(days=days_filter)).isoformat()
+        filter_conditions.append({"published_iso": {"$gte": cutoff}})
+
+    if filter_conditions:
+        chroma_filter = (
+            filter_conditions[0]
+            if len(filter_conditions) == 1
+            else {"$and": filter_conditions}
+        )
+        retriever = get_vector_store().as_retriever(
+            search_type="mmr",
+            search_kwargs={"k": k, "fetch_k": 20, "filter": chroma_filter},
+        )
+    else:
+        retriever = get_retriever(k=k, fetch_k=20)
 
     docs = await retriever.ainvoke(query)
     return docs
@@ -74,9 +104,10 @@ def _format_docs(docs: list[Document]) -> str:
 
 
 def insert_documents(docs: list[Document]):
-    """向向量库批量插入文档（带去重）"""
+    """向向量库批量插入文档（按 source_url 去重）"""
     store = get_vector_store()
-    existing_urls = _get_existing_urls()
+    urls = [doc.metadata.get("source_url", "") for doc in docs if doc.metadata.get("source_url")]
+    existing_urls = _get_existing_urls(urls)
     new_docs = [
         doc for doc in docs
         if doc.metadata.get("source_url") not in existing_urls
@@ -87,33 +118,50 @@ def insert_documents(docs: list[Document]):
     return 0
 
 
-def _get_existing_urls() -> set:
-    """获取向量库中已有的 URL（用于去重）"""
+def _get_existing_urls(candidate_urls: list[str]) -> set:
+    """查询向量库中已存在的 URL（使用元数据过滤，避免全量加载）"""
+    if not candidate_urls:
+        return set()
     store = get_vector_store()
     try:
-        results = store.get()
-        urls = {
+        result = store.get(where={"source_url": {"$in": candidate_urls}})
+        return {
             meta.get("source_url", "")
-            for meta in results.get("metadatas", [])
+            for meta in (result.get("metadatas") or [])
             if meta
         }
-        return urls
     except Exception:
         return set()
 
 
 def delete_old_documents(days: int = 90):
-    """清理超过指定天数的旧文档"""
-    from datetime import datetime, timedelta
+    """清理超过指定天数的旧文档。
+    使用 ISO 格式的 published_iso 元数据字段进行过滤。"""
     cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
     store = get_vector_store()
     try:
-        results = store.get()
+        # 先用 metadata filter 找出到期文档（需要 published_iso 字段支持）
+        try:
+            result = store.get(where={"published_iso": {"$lt": cutoff}})
+        except Exception:
+            # ChromaDB 的 $lt 在某些版本对字符串比较不稳定，回退到全量获取
+            result = store.get()
+
         ids_to_delete = []
-        for doc_id, meta in zip(results.get("ids", []), results.get("metadatas", [])):
-            if meta and meta.get("published_date", "") < cutoff:
+        for doc_id, meta in zip(result.get("ids", []), result.get("metadatas", [])):
+            if not meta:
+                continue
+            iso_date = meta.get("published_iso", "")
+            if iso_date and iso_date < cutoff:
                 ids_to_delete.append(doc_id)
+            elif not iso_date:
+                # 没有 ISO 日期，尝试解析原始日期
+                raw_date = meta.get("published_date", "")
+                iso = _parse_rss_date(raw_date)
+                if iso and iso < cutoff:
+                    ids_to_delete.append(doc_id)
+
         if ids_to_delete:
             store.delete(ids=ids_to_delete)
             return len(ids_to_delete)
