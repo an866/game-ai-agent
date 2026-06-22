@@ -74,7 +74,30 @@ with col2:
                         st.markdown(f"类型: {', '.join(game['genres'])}")
                     if game.get("platforms"):
                         st.markdown(f"平台: {', '.join(game['platforms'][:5])}")
-                    if st.button("查看详情", key=f"detail_{game['id']}"):
-                        st.switch_page("search")
+                    with st.expander(f"查看 {game['name']} 详情"):
+                        try:
+                            from src.tools.rawg import RAWGGameDetailTool
+                            detail_tool = RAWGGameDetailTool()
+                            detail = run_async_safe(detail_tool._arun(game["id"]))
+                            if detail and "error" not in detail:
+                                if detail.get("description"):
+                                    st.markdown(detail["description"])
+                                detail_col1, detail_col2, detail_col3 = st.columns(3)
+                                with detail_col1:
+                                    st.metric("评分", f"{detail.get('rating', '-')}/5")
+                                with detail_col2:
+                                    st.metric("评分人数", detail.get("rating_count", "-"))
+                                with detail_col3:
+                                    st.metric("Metacritic", detail.get("metacritic", "-"))
+                                if detail.get("developers"):
+                                    st.caption(f"开发商: {', '.join(detail['developers'])}")
+                                if detail.get("publishers"):
+                                    st.caption(f"发行商: {', '.join(detail['publishers'])}")
+                                if detail.get("website"):
+                                    st.link_button("官网", detail["website"])
+                            else:
+                                st.info("暂无详细信息")
+                        except Exception:
+                            st.info("详情加载失败")
     elif not query:
         st.info("输入游戏名称开始搜索")
