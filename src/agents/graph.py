@@ -6,9 +6,12 @@ from pathlib import Path
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from loguru import logger
+
+from src.tools.web_search import WebSearchTool
 
 from config.settings import get_settings
 
@@ -26,6 +29,7 @@ class GameAgentState(TypedDict):
     intent: str
     sub_intent: str
     game_name: str
+    reasoning: str
     steam_appid: int
 
     query_result: dict
@@ -54,7 +58,7 @@ async def router_node(state: GameAgentState) -> dict:
     route_fn = build_router_chain()
     result = route_fn(state)
 
-    logger.info(f"路由: intent={result['intent']}, game={result.get('game_name', 'N/A')}")
+    logger.info(f"路由: intent={result['intent']}, game={result.get('game_name', 'N/A')}, reason={result.get('reasoning', 'N/A')}")
     return result
 
 
@@ -82,19 +86,42 @@ async def news_node(state: GameAgentState) -> dict:
     return await run_news(state)
 
 
+_general_agent = None
+
+
+def build_general_agent():
+    """构建通用对话 Agent (ReAct + WebSearch) —— 单例缓存"""
+    global _general_agent
+    if _general_agent is not None:
+        return _general_agent
+
+    llm = ChatOpenAI(
+        model=settings.llm_model,
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        temperature=0.5,
+    )
+    tools = [WebSearchTool()]
+    system_prompt = prompts["general"]["system_prompt"]
+    agent = create_react_agent(model=llm, tools=tools, prompt=system_prompt)
+    agent.max_iterations = 3
+    _general_agent = agent
+    return agent
+
+
 async def general_chat_node(state: GameAgentState) -> dict:
-    """通用对话节点"""
-    llm = get_llm()
+    """通用对话节点 —— 具备联网搜索能力"""
+    agent = build_general_agent()
     messages = state.get("messages", [])
     user_input = messages[-1].content if messages else "你好"
 
-    system_prompt = prompts["general"]["system_prompt"]
-    response = await llm.ainvoke([
-        ("system", system_prompt),
-        ("human", user_input),
-    ])
+    agent_messages = list(messages[:-1]) if len(messages) > 1 else []
+    agent_messages.append(HumanMessage(content=user_input))
+    result = await agent.ainvoke({"messages": agent_messages})
+    response_messages = result.get("messages", [])
+    final = response_messages[-1].content if response_messages else ""
 
-    return {"final_response": response.content}
+    return {"final_response": final}
 
 
 async def aggregator_node(state: GameAgentState) -> dict:
