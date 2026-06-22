@@ -46,6 +46,44 @@ def load_stats(_cache_buster: int = 0) -> dict:
     return stats
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_hot_games(_cache_buster: int = 0) -> list[dict]:
+    """加载热门游戏实时在线人数（缓存 5 分钟）"""
+    hot_games_config = [
+        {"name": "Counter-Strike 2", "appid": 730},
+        {"name": "Dota 2", "appid": 570},
+        {"name": "PUBG: BATTLEGROUNDS", "appid": 578080},
+        {"name": "Apex Legends", "appid": 1172470},
+        {"name": "Genshin Impact", "appid": None},
+    ]
+
+    async def _fetch_players():
+        from src.tools.steam_api import SteamCurrentPlayersTool
+        tool = SteamCurrentPlayersTool()
+        results = {}
+        for game in hot_games_config:
+            if game["appid"] is None:
+                results[game["name"]] = None
+                continue
+            try:
+                data = await tool._arun(game["appid"])
+                results[game["name"]] = data.get("current_players", 0)
+            except Exception:
+                results[game["name"]] = None
+        return results
+
+    players = run_async_safe(_fetch_players())
+
+    result = []
+    for game in hot_games_config:
+        count = players.get(game["name"])
+        if count is not None:
+            result.append({"name": game["name"], "players": f"{count:,}"})
+        else:
+            result.append({"name": game["name"], "players": "-"})
+    return result
+
+
 st.title("游戏 AI 助手")
 st.markdown("PC 游戏信息查询 | 价格追踪 | 新闻聚合 | 智能推荐")
 
@@ -88,13 +126,6 @@ st.divider()
 
 st.subheader("热门游戏")
 
-hot_games = [
-    {"name": "Counter-Strike 2", "players": "1,500,000+", "appid": 730},
-    {"name": "Dota 2", "players": "600,000+", "appid": 570},
-    {"name": "PUBG: BATTLEGROUNDS", "players": "400,000+", "appid": 578080},
-    {"name": "Apex Legends", "players": "250,000+", "appid": 1172470},
-    {"name": "原神", "players": "网游", "appid": None},
-]
-
+hot_games = load_hot_games()
 for game in hot_games:
     st.markdown(f"- **{game['name']}** — 在线: {game['players']}")
