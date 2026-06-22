@@ -1,10 +1,14 @@
 # UI 改进实施计划
 
+> ✅ **状态：已完成** (2026-06-22) — 全部 15 个任务、16 个提交已合入 `master`
+>
+> 详细记录见 [设计文档](../specs/2026-06-22-ui-improvement-design.md)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Streamlit 前端 6 页面全面改进 —— 数据对接、功能修复、体验统一
 
-**Architecture:** 分 4 批 14 个任务，逐批推进。每批结束时页面可独立验证。改动触及 6 个页面文件、2 个工具文件、1 个 retriever、2 个新增组件。
+**Architecture:** 分 4 批 15 个任务，逐批推进。每批结束时页面可独立验证。改动触及 6 个页面文件、2 个工具文件、1 个 retriever、2 个新增组件。
 
 **Tech Stack:** Python 3.14, Streamlit, LangChain Chroma, SQLAlchemy Async, httpx
 
