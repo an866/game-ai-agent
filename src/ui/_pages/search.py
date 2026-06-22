@@ -2,6 +2,8 @@
 
 import streamlit as st
 from src.ui.session_state import run_async_safe
+from src.ui.components._loading import show_loading
+from src.ui.components._error import show_error
 
 st.title("游戏搜索")
 
@@ -35,25 +37,23 @@ with col1:
 
 with col2:
     if query and st.button("搜索", type="primary"):
-        try:
-            # 转换筛选值为 API 参数
-            plat_param = ",".join(PLATFORM_MAP[p] for p in platform_filter) if platform_filter else None
-            genre_param = ",".join(GENRE_MAP[g] for g in genre_filter) if genre_filter else None
+        with show_error("搜索失败"):
+            with show_loading("搜索中..."):
+                plat_param = ",".join(PLATFORM_MAP[p] for p in platform_filter) if platform_filter else None
+                genre_param = ",".join(GENRE_MAP[g] for g in genre_filter) if genre_filter else None
 
-            from src.tools.rawg import RAWGGameSearchTool
-            tool = RAWGGameSearchTool()
-            results = run_async_safe(tool._arun(
-                query,
-                platforms=plat_param,
-                genres=genre_param,
-            ))
+                from src.tools.rawg import RAWGGameSearchTool
+                tool = RAWGGameSearchTool()
+                results = run_async_safe(tool._arun(
+                    query,
+                    platforms=plat_param,
+                    genres=genre_param,
+                ))
 
-            if results:
-                st.session_state["search_results"] = results
-            else:
-                st.warning("未找到匹配的游戏，尝试缩短关键词或减少筛选条件")
-        except Exception as e:
-            st.error(f"搜索失败: {e}")
+                if results:
+                    st.session_state["search_results"] = results
+                else:
+                    st.warning("未找到匹配的游戏，尝试缩短关键词或减少筛选条件")
 
     results = st.session_state.get("search_results")
     if results:

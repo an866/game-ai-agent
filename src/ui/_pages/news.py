@@ -2,6 +2,8 @@
 
 import streamlit as st
 from src.ui.session_state import run_async_safe
+from src.ui.components._loading import show_loading
+from src.ui.components._error import show_error
 
 st.title("游戏新闻")
 
@@ -21,8 +23,8 @@ with tab1:
     news_query = st.text_input("搜索关键词", placeholder="输入关键词或自然语言查询...")
 
     if news_query and st.button("搜索新闻", type="primary"):
-        with st.spinner("检索中..."):
-            try:
+        with show_error("检索失败"):
+            with show_loading("检索中..."):
                 from src.rag.retriever import search_news
 
                 gf = None if game_filter == "全部" else game_filter
@@ -54,8 +56,6 @@ with tab1:
                                 st.link_button("阅读原文", meta["source_url"])
                 else:
                     st.info("未找到相关新闻，尝试修改搜索条件")
-            except Exception as e:
-                st.error(f"检索失败: {e}")
     elif not news_query:
         st.info("输入关键词后点击搜索")
 
