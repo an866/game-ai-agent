@@ -2,32 +2,48 @@
 
 from typing import Any
 import httpx
+from pydantic import BaseModel, Field
 from config.settings import get_settings
-from src.tools.base import GameDataTool
+from src.tools.base import GameDataTool, get_headers
 
 settings = get_settings()
+
+
+class RAWGSearchInput(BaseModel):
+    query: str = Field(description="游戏名称")
+    page: int = Field(default=1, description="页码")
+    platforms: str | None = Field(default=None, description="平台过滤，多个用逗号分隔")
+    genres: str | None = Field(default=None, description="类型过滤，多个用逗号分隔")
 
 
 class RAWGGameSearchTool(GameDataTool):
     """搜索 RAWG 游戏数据库"""
     name: str = "rawg_search_game"
     description: str = "在 RAWG 游戏数据库中搜索游戏，返回游戏 ID、名称、评分、类型等。输入为游戏名称。"
+    args_schema: type[BaseModel] = RAWGSearchInput
     cache_ttl: int = 600
 
-    async def _arun(self, query: str, page: int = 1) -> Any:
-        return await self._cached_call(self._search, query, page)
+    async def _arun(self, query: str, page: int = 1, platforms: str | None = None,
+                    genres: str | None = None, **kwargs: Any) -> Any:
+        return await self._cached_call(self._search, query, page, platforms, genres)
 
-    async def _search(self, query: str, page: int = 1) -> list[dict]:
+    async def _search(self, query: str, page: int = 1,
+                      platforms: str | None = None, genres: str | None = None) -> list[dict]:
         url = "https://api.rawg.io/api/games"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
+            params: dict = {
+                "key": settings.rawg_api_key,
+                "search": query,
+                "page": page,
+                "page_size": 10,
+            }
+            if platforms:
+                params["platforms"] = platforms
+            if genres:
+                params["genres"] = genres
             resp = await client.get(
                 url,
-                params={
-                    "key": settings.rawg_api_key,
-                    "search": query,
-                    "page": page,
-                    "page_size": 10,
-                },
+                params=params,
                 timeout=self.request_timeout,
             )
             resp.raise_for_status()
@@ -48,18 +64,23 @@ class RAWGGameSearchTool(GameDataTool):
             ]
 
 
+class RAWGDetailInput(BaseModel):
+    game_id: int = Field(description="RAWG 游戏 ID")
+
+
 class RAWGGameDetailTool(GameDataTool):
     """获取 RAWG 游戏详细信息"""
     name: str = "rawg_get_details"
     description: str = "通过 RAWG 游戏 ID 获取详细游戏信息。输入为 RAWG 游戏 ID（整数）。"
+    args_schema: type[BaseModel] = RAWGDetailInput
     cache_ttl: int = 1800
 
-    async def _arun(self, game_id: int) -> Any:
+    async def _arun(self, game_id: int, **kwargs: Any) -> Any:
         return await self._cached_call(self._get_details, game_id)
 
     async def _get_details(self, game_id: int) -> dict:
         url = f"https://api.rawg.io/api/games/{game_id}"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
             resp = await client.get(
                 url,
                 params={"key": settings.rawg_api_key},
@@ -87,18 +108,23 @@ class RAWGGameDetailTool(GameDataTool):
             }
 
 
+class RAWGScreenshotsInput(BaseModel):
+    game_id: int = Field(description="RAWG 游戏 ID")
+
+
 class RAWGGameScreenshotsTool(GameDataTool):
     """获取 RAWG 游戏截图"""
     name: str = "rawg_get_screenshots"
     description: str = "获取游戏的截图列表。输入为 RAWG 游戏 ID（整数）。"
+    args_schema: type[BaseModel] = RAWGScreenshotsInput
     cache_ttl: int = 3600
 
-    async def _arun(self, game_id: int) -> Any:
+    async def _arun(self, game_id: int, **kwargs: Any) -> Any:
         return await self._cached_call(self._get_screenshots, game_id)
 
     async def _get_screenshots(self, game_id: int) -> list[dict]:
         url = f"https://api.rawg.io/api/games/{game_id}/screenshots"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
             resp = await client.get(
                 url,
                 params={"key": settings.rawg_api_key},
@@ -112,18 +138,23 @@ class RAWGGameScreenshotsTool(GameDataTool):
             ]
 
 
+class RAWGRecommendInput(BaseModel):
+    game_id: int = Field(description="RAWG 游戏 ID")
+
+
 class RAWGGameRecommendationsTool(GameDataTool):
     """获取 RAWG 相似游戏推荐"""
     name: str = "rawg_get_recommendations"
     description: str = "根据 RAWG 游戏 ID 获取相似游戏推荐。输入为 RAWG 游戏 ID（整数）。"
+    args_schema: type[BaseModel] = RAWGRecommendInput
     cache_ttl: int = 3600
 
-    async def _arun(self, game_id: int) -> Any:
+    async def _arun(self, game_id: int, **kwargs: Any) -> Any:
         return await self._cached_call(self._get_suggested, game_id)
 
     async def _get_suggested(self, game_id: int) -> list[dict]:
         url = f"https://api.rawg.io/api/games/{game_id}/suggested"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
             resp = await client.get(
                 url,
                 params={"key": settings.rawg_api_key},
