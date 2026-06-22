@@ -6,16 +6,44 @@ from src.data.database import async_session_factory
 from src.data.repository import WatchlistRepository, PriceAlertRepository
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def load_stats():
-    """加载首页统计数据"""
-    async def _load():
+@st.cache_data(ttl=120, show_spinner=False)
+def load_stats(_cache_buster: int = 0) -> dict:
+    """加载首页仪表盘统计数据（缓存 120 秒）"""
+    async def _fetch():
         async with async_session_factory() as session:
             watchlist_count = await WatchlistRepository(session).get_count()
-            alerts_count = await PriceAlertRepository(session).get_count_unread()
-            return {"watchlist": watchlist_count, "alerts": alerts_count}
+            alert_count = await PriceAlertRepository(session).get_count_unread()
+        return {
+            "watchlist": watchlist_count,
+            "alerts": alert_count,
+        }
 
-    return run_async_safe(_load())
+    def _chroma_count():
+        """获取 ChromaDB 新闻文档总数"""
+        try:
+            from src.rag.store import get_vector_store
+            store = get_vector_store()
+            return store._collection.count()
+        except Exception:
+            return 0
+
+    def _best_deal():
+        """获取今日最低折扣"""
+        try:
+            from src.tools.cheapshark import CheapSharkDealsTool
+            tool = CheapSharkDealsTool()
+            deals = run_async_safe(tool._arun("", on_sale=True))
+            if deals:
+                best = deals[0]
+                return f"{best['savings']:.0f}% ({best['title'][:20]})"
+        except Exception:
+            pass
+        return "-"
+
+    stats = run_async_safe(_fetch())
+    stats["news_count"] = _chroma_count()
+    stats["best_deal"] = _best_deal()
+    return stats
 
 
 st.title("游戏 AI 助手")
@@ -30,9 +58,9 @@ with col1:
 with col2:
     st.metric(label="待读告警", value=stats["alerts"])
 with col3:
-    st.metric(label="新闻库", value="-")
+    st.metric(label="新闻库", value=stats.get("news_count", 0), help="已索引的新闻文档数")
 with col4:
-    st.metric(label="今日最低折扣", value="-")
+    st.metric(label="今日最低折扣", value=stats.get("best_deal", "-"))
 
 st.divider()
 
