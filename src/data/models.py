@@ -53,6 +53,7 @@ class ChatHistory(Base):
     __tablename__ = "chat_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(20), nullable=False, default="default", comment="会话 ID")
     role = Column(String(20), nullable=False, comment="user / assistant")
     content = Column(Text, nullable=False, comment="消息内容")
     intent = Column(String(50), nullable=True, comment="意图分类")

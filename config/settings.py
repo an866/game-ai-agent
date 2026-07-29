@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # ---- 日志 ----
     log_level: str = "INFO"
 
+    # ---- Memory ----
+    memory_max_messages: int = 20
+    memory_compress_threshold: float = 0.85
+    memory_recent_keep: int = 8
+
     @property
     def mysql_url(self) -> str:
         return (
