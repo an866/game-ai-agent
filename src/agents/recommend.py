@@ -3,11 +3,12 @@
 import yaml
 from pathlib import Path
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.prompts import PromptTemplate
+from langchain_core.messages import HumanMessage
+from langgraph.prebuilt import create_react_agent
 
 from config.settings import get_settings
 from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool, RAWGGameDetailTool
+from src.tools.web_search import WebSearchTool
 
 settings = get_settings()
 
@@ -15,78 +16,67 @@ config_path = Path(__file__).parent.parent.parent / "config" / "agents.yaml"
 with open(config_path, encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
 
-REACT_PROMPT = PromptTemplate.from_template("""You are a game recommendation expert.
-
-TOOLS:
-{tools}
-
-TOOL NAMES: {tool_names}
-
-Steps:
-1. First search for the game the user mentioned to get its RAWG ID
-2. Then use that ID to get similar game recommendations
-3. If needed, get more details on the recommended games
-
-Use the following format:
-Question: the user's question
-Thought: think about what to do
-Action: the tool to use
-Action Input: the input to the tool
-Observation: the tool result
-... (repeat as needed)
-Thought: I now know the final answer
-Final Answer: Recommend 3-5 similar games in Chinese, with reasons for each
-
-System: {system_prompt}
-
-Question: {input}
-Thought: {agent_scratchpad}
-""")
-
 
 def get_recommend_llm() -> ChatOpenAI:
     return ChatOpenAI(
-        model=settings.llm_model_complex,
+        model=settings.llm_model,
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
         temperature=0.7,
+        streaming=True,
     )
 
 
-def build_recommend_agent() -> AgentExecutor:
+_recommend_agent = None
+
+
+def build_recommend_agent():
+    """构建游戏推荐 Agent (ReAct) —— 单例缓存"""
+    global _recommend_agent
+    if _recommend_agent is not None:
+        return _recommend_agent
+
     llm = get_recommend_llm()
     tools = [
+        WebSearchTool(),
         RAWGGameSearchTool(),
         RAWGGameRecommendationsTool(),
         RAWGGameDetailTool(),
     ]
-
-    agent = create_react_agent(llm=llm, tools=tools, prompt=REACT_PROMPT)
-    return AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        handle_parsing_errors=True,
-        max_iterations=8,
-        return_intermediate_steps=False,
-    )
+    system_prompt = prompts["recommend"]["system_prompt"]
+    agent = create_react_agent(model=llm, tools=tools, prompt=system_prompt)
+    agent.max_iterations = 5
+    _recommend_agent = agent
+    return agent
 
 
-async def run_recommend(state: dict) -> dict:
-    executor = build_recommend_agent()
+async def run_recommend(state: dict, profile: dict | None = None) -> dict:
+    agent = build_recommend_agent()
     messages = state.get("messages", [])
     user_input = messages[-1].content if messages else ""
     game_name = state.get("game_name", "")
 
-    query = f"用户喜欢: {game_name}. {user_input}"
+    # ── 注入用户画像 ──
+    if profile:
+        parts = []
+        if profile.get("favorite_genres"): parts.append(f"偏好类型: {profile['favorite_genres']}")
+        if profile.get("favorite_games"): parts.append(f"喜欢的游戏: {profile['favorite_games']}")
+        if profile.get("platforms"): parts.append(f"平台: {profile['platforms']}")
+        if profile.get("budget_range"): parts.append(f"预算: {profile['budget_range']}")
+        if parts:
+            profile_text = "用户画像: " + "；".join(parts) + "。"
+            query = f"{profile_text}\n用户喜欢: {game_name}. {user_input}"
+        else:
+            query = f"用户喜欢: {game_name}. {user_input}"
+    else:
+        query = f"用户喜欢: {game_name}. {user_input}"
 
-    system_prompt = prompts["recommend"]["system_prompt"]
-    result = await executor.ainvoke({
-        "input": query,
-        "system_prompt": system_prompt,
-    })
+    agent_messages = [HumanMessage(content=query)]
+    result = await agent.ainvoke({"messages": agent_messages})
+    response_messages = result.get("messages", [])
+    final = response_messages[-1].content if response_messages else ""
 
     return {
         "recommend_result": result,
-        "final_response": result.get("output", ""),
+        "final_response": final,
     }

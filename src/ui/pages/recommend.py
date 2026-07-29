@@ -7,6 +7,12 @@ st.title("游戏推荐")
 
 st.markdown("输入你喜欢的游戏，AI 为你推荐相似的游戏")
 
+# ── 加载用户画像 ──
+from src.agents.memory import ConversationMemory
+from src.ui.session_state import run_async_safe
+mem = ConversationMemory()
+user_profile = run_async_safe(mem.load_profile("default"))
+
 game_input = st.text_input("游戏名称", placeholder="例如: 巫师3, 原神, 空洞骑士...")
 
 col1, col2 = st.columns([1, 1])
@@ -21,7 +27,16 @@ if st.button("推荐游戏", type="primary", disabled=not game_input):
             from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool
 
             search_tool = RAWGGameSearchTool()
-            results = await search_tool._arun(game_input)
+            # ── 注入用户画像 ──
+            search_query = game_input
+            if user_profile:
+                parts = []
+                if user_profile.get("favorite_genres"): parts.append(f"偏好类型: {user_profile['favorite_genres']}")
+                if user_profile.get("favorite_games"): parts.append(f"喜欢的游戏: {user_profile['favorite_games']}")
+                if user_profile.get("budget_range"): parts.append(f"预算: {user_profile['budget_range']}")
+                if parts:
+                    search_query = "用户画像: " + "；".join(parts) + "。\n" + game_input
+            results = await search_tool._arun(search_query)
 
             if not results:
                 st.warning(f"未找到 '{game_input}' 的相关信息")

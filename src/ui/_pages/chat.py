@@ -23,6 +23,11 @@ def _after_message(sid: str, role: str, content: str):
         )
         sessions[sid]["messages"] = compacted
         sessions[sid]["summary"] = new_summary
+        # ── 画像提取 ──
+        if new_summary:
+            profile = run_async_safe(mem.extract_profile(new_summary))
+            if profile and any(profile.values()):
+                run_async_safe(mem.save_profile(sid, profile))
 
 
 st.title("AI 对话")
