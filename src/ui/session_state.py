@@ -5,28 +5,19 @@ import concurrent.futures
 import streamlit as st
 
 
-_persistent_loop: asyncio.AbstractEventLoop | None = None
-
-
-def _get_persistent_loop() -> asyncio.AbstractEventLoop:
-    """获取持久化事件循环（模块级单例），避免频繁创建/销毁导致
-    SQLAlchemy 连接池在 loop.close() 时崩溃。"""
-    global _persistent_loop
-    if _persistent_loop is None or _persistent_loop.is_closed():
-        _persistent_loop = asyncio.new_event_loop()
-    return _persistent_loop
-
-
 def run_async_safe(coro):
     """在 Streamlit 的同步上下文中安全运行 async 协程。
 
-    使用持久化事件循环，避免 loop.close() 触发 SQLAlchemy
-    连接池清理时事件循环已关闭的错误。
+    在独立线程中创建新事件循环执行，不调用 loop.close()
+    以避免触发 SQLAlchemy 连接池清理时的事件循环已关闭错误。
+    事件循环在进程退出时由 OS 回收。
     """
     def _run():
-        loop = _get_persistent_loop()
+        loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         return loop.run_until_complete(coro)
+        # NOTE: 不调用 loop.close() — SQLAlchemy 异步引擎在析构时
+        # 会尝试清理连接池，需要事件循环仍然存活。
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(_run).result()
