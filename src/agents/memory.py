@@ -93,7 +93,7 @@ class ConversationMemory:
         """返回 True 表示当前消息数已达到压缩阈值。"""
         _max = max_messages if max_messages is not None else settings.memory_max_messages
         _threshold = threshold if threshold is not None else settings.memory_compress_threshold
-        return count >= int(_max * _threshold)
+        return count >= _max * _threshold
 
     # ── LLM 摘要 ──────────────────────────────────────────
 
