@@ -288,10 +288,14 @@ async def chat_stream(
         yield {"type": "error", "message": str(exc)}
 
 
-async def chat(message: str, history: list[dict] | None = None) -> str:
+async def chat(
+    message: str,
+    history: list[dict] | None = None,
+    summary: str | None = None,
+) -> str:
     """便捷对话接口（非流式，保持向后兼容）"""
     graph = get_graph()
-    messages = _build_messages(message, history)
+    messages = _build_messages(message, history, summary=summary)
 
     result = await graph.ainvoke({"messages": messages})
     response_messages = result.get("messages", [])
