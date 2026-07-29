@@ -1,5 +1,6 @@
 """对话记忆管理 —— 持久化 + Token 窗口压缩"""
 
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -29,6 +30,13 @@ class ConversationMemory:
     消息 buffer 和摘要存储在 Streamlit st.session_state 中（调用方管理），
     本类仅提供纯方法，不持有任何实例状态。
     """
+
+    PROFILE_EXTRACT_PROMPT = (
+        "根据以下对话摘要，提取用户的游戏偏好，严格输出JSON格式，不要包含任何其他文字：\n"
+        '{"favorite_genres":"","favorite_games":"","platforms":"","budget_range":""}\n'
+        "只提取对话中明确提到的信息，不要推测。没有信息的字段留空字符串。\n"
+        "对话摘要:\n{summary}"
+    )
 
     def __init__(self):
         self._compress_llm: Optional[ChatOpenAI] = None
@@ -168,6 +176,93 @@ class ConversationMemory:
         )
 
         return recent, full_summary
+
+    # ── 画像提取 ──────────────────────────────────────────
+
+    async def extract_profile(self, summary: str) -> dict:
+        """LLM 从摘要中提取游戏偏好 → {"favorite_genres": "动作,RPG", ...}"""
+        if not summary:
+            return {}
+        llm = self._get_compress_llm()
+        prompt = self.PROFILE_EXTRACT_PROMPT.format(summary=summary)
+        try:
+            response = await llm.ainvoke([HumanMessage(content=prompt)])
+            text = response.content.strip()
+            # Extract JSON (some models wrap in ```json ... ```)
+            if "```" in text:
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            return json.loads(text)
+        except Exception as exc:
+            logger.warning(f"画像提取失败: {exc}")
+            return {}
+
+    async def save_profile(self, session_id: str, profile: dict) -> bool:
+        """写入 user_preferences 表（upsert）"""
+        if not profile:
+            return False
+        try:
+            async with async_session_factory() as db:
+                from src.data.models import UserPreference
+                from sqlalchemy import update
+
+                result = await db.execute(
+                    select(UserPreference).where(UserPreference.session_id == session_id)
+                )
+                existing = result.scalar_one_or_none()
+                if existing:
+                    await db.execute(
+                        update(UserPreference)
+                        .where(UserPreference.session_id == session_id)
+                        .values(
+                            favorite_genres=profile.get("favorite_genres", ""),
+                            favorite_games=profile.get("favorite_games", ""),
+                            platforms=profile.get("platforms", ""),
+                            budget_range=profile.get("budget_range", ""),
+                        )
+                    )
+                else:
+                    pref = UserPreference(
+                        session_id=session_id,
+                        favorite_genres=profile.get("favorite_genres", ""),
+                        favorite_games=profile.get("favorite_games", ""),
+                        platforms=profile.get("platforms", ""),
+                        budget_range=profile.get("budget_range", ""),
+                    )
+                    db.add(pref)
+                await db.commit()
+            logger.info(f"[ConversationMemory] 画像已保存 (session={session_id}): {profile}")
+            return True
+        except Exception as exc:
+            logger.warning(f"画像保存失败 (session={session_id}): {exc}")
+            return False
+
+    async def load_profile(self, session_id: str) -> dict | None:
+        """从 user_preferences 读取最新画像"""
+        try:
+            async with async_session_factory() as db:
+                from src.data.models import UserPreference
+
+                result = await db.execute(
+                    select(UserPreference)
+                    .where(UserPreference.session_id == session_id)
+                    .order_by(UserPreference.updated_at.desc())
+                    .limit(1)
+                )
+                row = result.scalar_one_or_none()
+                if row:
+                    return {
+                        "favorite_genres": row.favorite_genres or "",
+                        "favorite_games": row.favorite_games or "",
+                        "platforms": row.platforms or "",
+                        "budget_range": row.budget_range or "",
+                    }
+            return None
+        except Exception as exc:
+            logger.warning(f"画像加载失败 (session={session_id}): {exc}")
+            return None
 
     # ── 上下文构建 ──────────────────────────────────────────
 

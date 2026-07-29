@@ -41,6 +41,7 @@ class UserPreference(Base):
     __tablename__ = "user_preferences"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(20), nullable=False, default="default", comment="会话 ID")
     favorite_genres = Column(Text, nullable=True, comment="偏好类型（逗号分隔）")
     favorite_games = Column(Text, nullable=True, comment="偏好游戏（逗号分隔）")
     platforms = Column(String(200), nullable=True, comment="偏好平台")
