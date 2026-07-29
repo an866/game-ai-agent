@@ -65,7 +65,11 @@ def create_chat_session() -> str:
     """创建新对话会话，返回 session_id"""
     import uuid
     sid = str(uuid.uuid4())[:8]
-    st.session_state["chat_sessions"][sid] = {"title": "新对话", "messages": []}
+    st.session_state["chat_sessions"][sid] = {
+        "title": "新对话",
+        "messages": [],
+        "summary": None,
+    }
     st.session_state["active_session_id"] = sid
     return sid
 

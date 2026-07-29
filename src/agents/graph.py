@@ -203,6 +203,8 @@ def _build_messages(
 ) -> list:
     """将对话历史 + 可选摘要转换为 LangChain 消息列表"""
     messages = []
+    if summary:
+        messages.append(SystemMessage(content=summary))
     if history:
         for h in history:
             role = h.get("role", "")
@@ -231,6 +233,7 @@ NODE_LABELS = {
 async def chat_stream(
     message: str,
     history: list[dict] | None = None,
+    summary: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """流式对话接口 —— 逐 token 产出事件字典。
 
@@ -245,7 +248,7 @@ async def chat_stream(
         事件字典，最终事件为 {"type": "done"} 或 {"type": "error"}
     """
     graph = get_graph()
-    messages = _build_messages(message, history)
+    messages = _build_messages(message, history, summary=summary)
     full_response: str = ""
 
     try:
