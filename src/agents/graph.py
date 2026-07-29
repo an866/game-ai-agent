@@ -1,13 +1,13 @@
 """LangGraph 多智能体编排 —— Supervisor 模式"""
 
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, AsyncGenerator
 import yaml
 from pathlib import Path
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from loguru import logger
 
@@ -39,14 +39,6 @@ class GameAgentState(TypedDict):
 
     final_response: str
 
-
-def get_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.llm_model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0.3,
-    )
 
 
 # ===== 节点函数 =====
@@ -100,6 +92,7 @@ def build_general_agent():
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
         temperature=0.5,
+        streaming=True,
     )
     tools = [WebSearchTool()]
     system_prompt = prompts["general"]["system_prompt"]
@@ -203,17 +196,99 @@ def get_graph():
     return _graph
 
 
-async def chat(message: str, history: list[dict] | None = None) -> str:
-    """便捷对话接口"""
-    graph = get_graph()
+def _build_messages(
+    message: str,
+    history: list[dict] | None,
+    summary: str | None = None,
+) -> list:
+    """将对话历史 + 可选摘要转换为 LangChain 消息列表"""
     messages = []
     if history:
         for h in history:
-            if h["role"] == "user":
+            role = h.get("role", "")
+            if role == "user":
                 messages.append(HumanMessage(content=h["content"]))
+            elif role == "system":
+                messages.append(SystemMessage(content=h["content"]))
             else:
                 messages.append(AIMessage(content=h["content"]))
     messages.append(HumanMessage(content=message))
+    return messages
+
+
+# 节点标签 —— 用于流式进度展示
+NODE_LABELS = {
+    "router": "🔍 正在理解你的问题...",
+    "query": "🎮 正在搜索游戏信息...",
+    "price": "💰 正在查询价格...",
+    "recommend": "🎯 正在生成推荐...",
+    "news": "📰 正在检索新闻...",
+    "general_chat": "💬 正在思考...",
+    "aggregator": "📝 正在整理回复...",
+}
+
+
+async def chat_stream(
+    message: str,
+    history: list[dict] | None = None,
+) -> AsyncGenerator[dict, None]:
+    """流式对话接口 —— 逐 token 产出事件字典。
+
+    事件类型：
+        {"type": "progress", "node": "query"}     — 进入新阶段
+        {"type": "clear"}                         — 清空当前输出（Agent 内新一轮 LLM 调用开始）
+        {"type": "token", "content": "..."}       — 文本 token
+        {"type": "done", "response": "..."}       — 流结束，附带完整响应文本
+        {"type": "error", "message": "..."}       — 错误
+
+    Yields:
+        事件字典，最终事件为 {"type": "done"} 或 {"type": "error"}
+    """
+    graph = get_graph()
+    messages = _build_messages(message, history)
+    full_response: str = ""
+
+    try:
+        async for event in graph.astream_events(
+            {"messages": messages}, version="v2"
+        ):
+            kind = event["event"]
+            name = event.get("name", "")
+            metadata = event.get("metadata", {})
+
+            # ── 进度事件：进入新的 graph 节点 ──
+            if kind == "on_chain_start":
+                node = metadata.get("langgraph_node", "")
+                if node in NODE_LABELS:
+                    yield {"type": "progress", "node": node}
+
+            # ── 新 LLM 调用开始 → UI 清空上一段输出 ──
+            if kind == "on_chat_model_start":
+                # 仅在 agent 节点内部（非 Router）发出 clear
+                parent_node = metadata.get("langgraph_node", "")
+                if parent_node and parent_node != "router":
+                    full_response = ""
+                    yield {"type": "clear"}
+
+            # ── 流式 token ──
+            if kind == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                content = getattr(chunk, "content", "")
+                if content:
+                    full_response += content
+                    yield {"type": "token", "content": content}
+
+        yield {"type": "done", "response": full_response}
+
+    except Exception as exc:
+        logger.exception("流式对话异常")
+        yield {"type": "error", "message": str(exc)}
+
+
+async def chat(message: str, history: list[dict] | None = None) -> str:
+    """便捷对话接口（非流式，保持向后兼容）"""
+    graph = get_graph()
+    messages = _build_messages(message, history)
 
     result = await graph.ainvoke({"messages": messages})
     response_messages = result.get("messages", [])
