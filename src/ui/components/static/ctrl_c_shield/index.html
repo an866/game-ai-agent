@@ -8,12 +8,19 @@
          裸 C（无修饰）仍可触发清缓存（与汉堡菜单等价，保留）。 -->
     <script>
       (function () {
-        try {
-          window.parent.postMessage(
-            { type: "streamlit:setComponentReady", apiVersion: 1 },
-            "*"
-          );
-        } catch (e) {}
+        // 组件就绪协议：load 前主动发 + load 后再发一次（防首载竞态）
+        function announceReady() {
+          try {
+            window.parent.postMessage(
+              { type: "streamlit:setComponentReady", apiVersion: 1 },
+              "*"
+            );
+          } catch (e) {}
+        }
+        announceReady();
+        window.addEventListener("load", announceReady);
+
+        // 拦截挂载 + 诊断标记（同源场景可用 parent 页面检查 __shieldActive）
         try {
           window.parent.document.addEventListener(
             "keydown",
@@ -28,6 +35,7 @@
             },
             true
           );
+          window.parent.__shieldActive = true;
         } catch (e) {
           /* 跨域 iframe 场景：拦截降级为不生效（仅依赖 Streamlit 原生行为） */
         }
