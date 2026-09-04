@@ -16,7 +16,6 @@ from src.ui.chat.message_list import (
     bubble_html, render_message_list, render_streaming_cursor,
     render_streaming_placeholder,
 )
-from src.ui.chat.quick_commands import render_quick_commands
 from src.ui.chat.session_list import render_session_list
 
 
@@ -152,17 +151,10 @@ def render_chat_panel() -> None:
         else:
             render_message_list(history)
 
-        # 输入区（V4: 胶囊即点即发 + last_submitted 哨兵防重复提交；永不 pop widget key）
-        render_quick_commands()
-        draft = ui_state.get_panel_state("chat").get("draft", "")
-        if draft:
-            # 胶囊点击 = 即点即发：写入 widget 初始值，提交守卫 (prompt != last_submitted)
-            # 在下一 run 自然放行——Streamlit 无法区分"填充 run"与"填充后的用户 run"，
-            # 故不做"填入等回车"语义（与"停止按钮"同类限制）
-            st.session_state["chat_input_v2"] = draft
+        # 输入区（last_submitted 哨兵防重复提交；永不 pop widget key）
         prompt = st.text_input("输入问题...", key="chat_input_v2",
                                placeholder="输入问题，如：黑神话悟空现在多少钱？")
         if prompt and prompt != ui_state.get_panel_state("chat").get("last_submitted", ""):
-            # 提交 → 列入已知值（防重复提交）；同时清空草稿（防下次 run 回填旧模板）
-            ui_state.update_panel_state("chat", {"last_submitted": prompt, "draft": ""})
+            # 提交 → 列入已知值（防重复提交）
+            ui_state.update_panel_state("chat", {"last_submitted": prompt})
             _submit_prompt(prompt)

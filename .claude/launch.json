@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-master",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3.14", "-m", "src.main", "ui"],
+      "port": 8501,
+      "autoPort": true
+    }
+  ]
+}

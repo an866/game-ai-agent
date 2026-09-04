@@ -14,21 +14,21 @@ THEME_VARS: dict[str, dict[str, str]] = {
         "--bg": "#0a0a12", "--panel": "#12121e", "--panel-2": "#181834",
         "--accent1": "#ff3d81", "--accent2": "#a855f7",
         "--ok": "#22d3ee", "--warn": "#f0a03a", "--danger": "#ff5d5d",
-        "--text": "#e8e8ff", "--text-dim": "#8a8ab8", "--border": "#2a2a55",
+        "--text": "#e8e8ff", "--text-dim": "#a6a6d4", "--border": "#3d3d70",
         "--glow": "0 0 12px rgba(255, 61, 129, .35)", "--radius": "12px",
     },
     "night": {  # 暗夜游戏风
         "--bg": "#0f1420", "--panel": "#171f31", "--panel-2": "#1e2942",
         "--accent1": "#2b4a9e", "--accent2": "#3b6ad8",
         "--ok": "#4ade80", "--warn": "#f0a03a", "--danger": "#ef4444",
-        "--text": "#c8d3ea", "--text-dim": "#8a97b8", "--border": "#2c3c61",
+        "--text": "#c8d3ea", "--text-dim": "#a0b2d6", "--border": "#3a4d7a",
         "--glow": "none", "--radius": "12px",
     },
     "light": {  # 明亮现代
         "--bg": "#f3f5fa", "--panel": "#ffffff", "--panel-2": "#f8fafc",
         "--accent1": "#3a6ff0", "--accent2": "#3a6ff0",
         "--ok": "#16a34a", "--warn": "#d97706", "--danger": "#dc2626",
-        "--text": "#33415c", "--text-dim": "#5a6b8a", "--border": "#e0e5f0",
+        "--text": "#33415c", "--text-dim": "#46587a", "--border": "#ccd6ea",
         "--glow": "0 2px 8px rgba(0, 0, 0, .06)", "--radius": "12px",
     },
 }
@@ -48,6 +48,9 @@ h1, h2, h3, h4 { color: var(--text); }
 .stTextInput input::placeholder { color: var(--text-dim); }
 [data-testid="stDataFrame"] { background: var(--panel); }
 hr { border-color: var(--border); }
+[data-testid="stCaptionContainer"] { color: var(--text-dim); }
+[data-testid="stDialog"] { color: var(--text); }
+.stTextInput input::placeholder, .stTextArea textarea::placeholder { color: var(--text-dim); }
 """
 
 # 流式输出光标动画（chat_panel 的 .streaming-cursor 依赖）

@@ -51,10 +51,14 @@ def setup_logging():
 
 def run_ui():
     """启动 Streamlit 前端"""
+    import os
     import streamlit.web.cli as stcli
 
     ui_path = Path(__file__).parent / "ui" / "app.py"
     sys.argv = ["streamlit", "run", str(ui_path)]
+    # preview 环境通过 PORT 注入动态端口（streamlit 需显式 --server.port）
+    if os.environ.get("PORT"):
+        sys.argv += ["--server.port", os.environ["PORT"], "--server.headless", "true"]
     logger.info("启动 Streamlit 前端...")
     stcli.main()
 

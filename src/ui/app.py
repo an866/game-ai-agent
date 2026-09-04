@@ -26,9 +26,9 @@ with st.sidebar:
     st.markdown("### 🎮")
     current = ui_state.get_tab()
     for tab in ui_state.TABS:
-        icon = ui_state.TAB_ICONS[tab]
         active = tab == current
-        if st.button(icon, key=f"tab_{tab}", help=tab,
+        label = f"{ui_state.TAB_ICONS[tab]} {ui_state.TAB_NAMES_CN[tab]}"
+        if st.button(label, key=f"tab_{tab}", help=tab,
                      type="primary" if active else "secondary",
                      use_container_width=True):
             ui_state.set_tab(tab)

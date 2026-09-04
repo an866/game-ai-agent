@@ -16,6 +16,10 @@ THEMES = ("neon", "night", "light")
 TAB_ICONS = {"chat": "💬", "overview": "🏠", "recommend": "🎯",
              "price": "💰", "news": "📰", "search": "🔍"}
 
+# 图标栏中文名（侧栏按钮显示「图标 + 名称」）
+TAB_NAMES_CN = {"chat": "对话", "overview": "概览", "recommend": "推荐",
+                "price": "价格", "news": "新闻", "search": "搜索"}
+
 
 def _ui() -> dict:
     if "ui" not in st.session_state:
