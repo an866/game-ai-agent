@@ -1,12 +1,20 @@
 """RAWG API 工具 —— 游戏元数据、截图、推荐"""
 
 from typing import Any
-import httpx
 from pydantic import BaseModel, Field
 from config.settings import get_settings
-from src.tools.base import GameDataTool, get_headers
+from src.tools.base import GameDataTool, get_http_client
 
 settings = get_settings()
+
+
+async def _rawg_get(path: str, params: dict | None = None) -> Any:
+    """RAWG API 统一请求：共享客户端 + API key 注入"""
+    url = f"https://api.rawg.io/api/{path}"
+    merged = {"key": settings.rawg_api_key, **(params or {})}
+    resp = await get_http_client().get(url, params=merged)
+    resp.raise_for_status()
+    return resp.json()
 
 
 class RAWGSearchInput(BaseModel):
@@ -29,39 +37,26 @@ class RAWGGameSearchTool(GameDataTool):
 
     async def _search(self, query: str, page: int = 1,
                       platforms: str | None = None, genres: str | None = None) -> list[dict]:
-        url = "https://api.rawg.io/api/games"
-        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
-            params: dict = {
-                "key": settings.rawg_api_key,
-                "search": query,
-                "page": page,
-                "page_size": 10,
+        params: dict = {"search": query, "page": page, "page_size": 10}
+        if platforms:
+            params["platforms"] = platforms
+        if genres:
+            params["genres"] = genres
+        data = await _rawg_get("games", params)
+        return [
+            {
+                "id": game["id"],
+                "name": game["name"],
+                "slug": game["slug"],
+                "rating": game.get("rating"),
+                "released": game.get("released"),
+                "genres": [g["name"] for g in game.get("genres", [])],
+                "platforms": [p["platform"]["name"] for p in game.get("platforms", [])],
+                "background_image": game.get("background_image"),
+                "metacritic": game.get("metacritic"),
             }
-            if platforms:
-                params["platforms"] = platforms
-            if genres:
-                params["genres"] = genres
-            resp = await client.get(
-                url,
-                params=params,
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return [
-                {
-                    "id": game["id"],
-                    "name": game["name"],
-                    "slug": game["slug"],
-                    "rating": game.get("rating"),
-                    "released": game.get("released"),
-                    "genres": [g["name"] for g in game.get("genres", [])],
-                    "platforms": [p["platform"]["name"] for p in game.get("platforms", [])],
-                    "background_image": game.get("background_image"),
-                    "metacritic": game.get("metacritic"),
-                }
-                for game in data.get("results", [])
-            ]
+            for game in data.get("results", [])
+        ]
 
 
 class RAWGDetailInput(BaseModel):
@@ -79,33 +74,25 @@ class RAWGGameDetailTool(GameDataTool):
         return await self._cached_call(self._get_details, game_id)
 
     async def _get_details(self, game_id: int) -> dict:
-        url = f"https://api.rawg.io/api/games/{game_id}"
-        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
-            resp = await client.get(
-                url,
-                params={"key": settings.rawg_api_key},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            game = resp.json()
-            return {
-                "id": game["id"],
-                "name": game["name"],
-                "slug": game["slug"],
-                "description": game.get("description_raw", "")[:1000],
-                "rating": game.get("rating"),
-                "rating_count": game.get("ratings_count"),
-                "released": game.get("released"),
-                "genres": [g["name"] for g in game.get("genres", [])],
-                "platforms": [p["platform"]["name"] for p in game.get("platforms", [])],
-                "developers": [d["name"] for d in game.get("developers", [])],
-                "publishers": [p["name"] for p in game.get("publishers", [])],
-                "tags": [t["name"] for t in game.get("tags", [])[:15]],
-                "background_image": game.get("background_image"),
-                "website": game.get("website"),
-                "metacritic": game.get("metacritic"),
-                "metacritic_url": game.get("metacritic_url"),
-            }
+        game = await _rawg_get(f"games/{game_id}")
+        return {
+            "id": game["id"],
+            "name": game["name"],
+            "slug": game["slug"],
+            "description": game.get("description_raw", "")[:1000],
+            "rating": game.get("rating"),
+            "rating_count": game.get("ratings_count"),
+            "released": game.get("released"),
+            "genres": [g["name"] for g in game.get("genres", [])],
+            "platforms": [p["platform"]["name"] for p in game.get("platforms", [])],
+            "developers": [d["name"] for d in game.get("developers", [])],
+            "publishers": [p["name"] for p in game.get("publishers", [])],
+            "tags": [t["name"] for t in game.get("tags", [])[:15]],
+            "background_image": game.get("background_image"),
+            "website": game.get("website"),
+            "metacritic": game.get("metacritic"),
+            "metacritic_url": game.get("metacritic_url"),
+        }
 
 
 class RAWGScreenshotsInput(BaseModel):
@@ -123,19 +110,11 @@ class RAWGGameScreenshotsTool(GameDataTool):
         return await self._cached_call(self._get_screenshots, game_id)
 
     async def _get_screenshots(self, game_id: int) -> list[dict]:
-        url = f"https://api.rawg.io/api/games/{game_id}/screenshots"
-        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
-            resp = await client.get(
-                url,
-                params={"key": settings.rawg_api_key},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return [
-                {"id": s["id"], "image": s["image"]}
-                for s in data.get("results", [])[:10]
-            ]
+        data = await _rawg_get(f"games/{game_id}/screenshots")
+        return [
+            {"id": s["id"], "image": s["image"]}
+            for s in data.get("results", [])[:10]
+        ]
 
 
 class RAWGRecommendInput(BaseModel):
@@ -153,24 +132,16 @@ class RAWGGameRecommendationsTool(GameDataTool):
         return await self._cached_call(self._get_suggested, game_id)
 
     async def _get_suggested(self, game_id: int) -> list[dict]:
-        url = f"https://api.rawg.io/api/games/{game_id}/suggested"
-        async with httpx.AsyncClient(headers=get_headers(), follow_redirects=True) as client:
-            resp = await client.get(
-                url,
-                params={"key": settings.rawg_api_key},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return [
-                {
-                    "id": game["id"],
-                    "name": game["name"],
-                    "rating": game.get("rating"),
-                    "released": game.get("released"),
-                    "genres": [g["name"] for g in game.get("genres", [])],
-                    "background_image": game.get("background_image"),
-                    "suggested_count": game.get("suggestions_count"),
-                }
-                for game in data.get("results", [])[:5]
-            ]
+        data = await _rawg_get(f"games/{game_id}/suggested")
+        return [
+            {
+                "id": game["id"],
+                "name": game["name"],
+                "rating": game.get("rating"),
+                "released": game.get("released"),
+                "genres": [g["name"] for g in game.get("genres", [])],
+                "background_image": game.get("background_image"),
+                "suggested_count": game.get("suggestions_count"),
+            }
+            for game in data.get("results", [])[:5]
+        ]

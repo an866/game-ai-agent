@@ -2,11 +2,11 @@
 
 from typing import Any
 import feedparser
-import httpx
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from loguru import logger
-from src.tools.base import GameDataTool
+from config.loader import get_rss_sources
+from src.tools.base import GameDataTool, get_http_client
 
 
 class RSSFetchTool(GameDataTool):
@@ -70,13 +70,12 @@ async def fetch_all_rss_as_documents() -> list[Document]:
         # 尝试抓取全文
         content = a.get("summary", "")
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(a["link"], timeout=10, headers={"User-Agent": "GameAI-Agent/1.0"})
-                if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "lxml")
-                    for tag in soup(["script", "style", "nav", "footer", "header"]):
-                        tag.decompose()
-                    content = soup.get_text(separator="\n", strip=True)[:3000]
+            resp = await get_http_client().get(a["link"], timeout=10)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "lxml")
+                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                    tag.decompose()
+                content = soup.get_text(separator="\n", strip=True)[:3000]
         except Exception:
             pass
 

@@ -1,8 +1,7 @@
 """HoYoLAB 社区工具 —— 原神 / 鸣潮 等游戏的官方资讯"""
 
 from typing import Any
-import httpx
-from src.tools.base import GameDataTool
+from src.tools.base import GameDataTool, get_http_client
 
 
 class GenshinNewsTool(GameDataTool):
@@ -16,28 +15,23 @@ class GenshinNewsTool(GameDataTool):
 
     async def _get_news(self, page_size: int = 10) -> list[dict]:
         url = "https://bbs-api-os.hoyolab.com/community/post/wapi/getNewsList"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"gids": 2, "type": 1, "pageSize": page_size},
-                headers={
-                    "User-Agent": "GameAI-Agent/1.0",
-                    "Referer": "https://www.hoyolab.com/",
-                },
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            posts = data.get("data", {}).get("list", [])
-            return [
-                {
-                    "title": p["post"]["subject"],
-                    "url": f"https://www.hoyolab.com/article/{p['post']['post_id']}",
-                    "created_at": p["post"]["created_at"],
-                    "summary": p["post"]["content"][:300],
-                }
-                for p in posts
-            ]
+        resp = await get_http_client().get(
+            url,
+            params={"gids": 2, "type": 1, "pageSize": page_size},
+            headers={"Referer": "https://www.hoyolab.com/"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        posts = data.get("data", {}).get("list", [])
+        return [
+            {
+                "title": p["post"]["subject"],
+                "url": f"https://www.hoyolab.com/article/{p['post']['post_id']}",
+                "created_at": p["post"]["created_at"],
+                "summary": p["post"]["content"][:300],
+            }
+            for p in posts
+        ]
 
 
 class GenshinEventsTool(GameDataTool):
@@ -51,25 +45,20 @@ class GenshinEventsTool(GameDataTool):
 
     async def _get_events(self) -> list[dict]:
         url = "https://bbs-api-os.hoyolab.com/community/community_contribution/wapi/event/list"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"game_id": 2},
-                headers={
-                    "User-Agent": "GameAI-Agent/1.0",
-                    "Referer": "https://www.hoyolab.com/",
-                },
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            events = data.get("data", {}).get("list", [])
-            return [
-                {
-                    "title": e.get("title"),
-                    "start_date": e.get("start_time"),
-                    "end_date": e.get("end_time"),
-                    "url": e.get("url", ""),
-                }
-                for e in events
-            ]
+        resp = await get_http_client().get(
+            url,
+            params={"game_id": 2},
+            headers={"Referer": "https://www.hoyolab.com/"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        events = data.get("data", {}).get("list", [])
+        return [
+            {
+                "title": e.get("title"),
+                "start_date": e.get("start_time"),
+                "end_date": e.get("end_time"),
+                "url": e.get("url", ""),
+            }
+            for e in events
+        ]

@@ -1,13 +1,27 @@
 """IsThereAnyDeal API 工具 —— 跨商店比价与历史价格"""
 
 from typing import Any
-import httpx
 from config.settings import get_settings
-from src.tools.base import GameDataTool
+from src.tools.base import GameDataTool, get_http_client
 
 settings = get_settings()
 
 ITAD_BASE = "https://api.isthereanydeal.com"
+
+
+async def _itad_price_data(game_plain: str, history: bool = False) -> dict:
+    """ITAD 价格查询统一实现（prices 与 history 仅差一个参数）"""
+    params = {
+        "key": settings.itad_api_key,
+        "plains": game_plain,
+        "region": "CN",
+        "country": "CN",
+    }
+    if history:
+        params["history"] = "1"
+    resp = await get_http_client().get(f"{ITAD_BASE}/v01/game/prices/", params=params)
+    resp.raise_for_status()
+    return resp.json().get("data", {}).get(game_plain, {})
 
 
 class ITADLookupTool(GameDataTool):
@@ -20,24 +34,21 @@ class ITADLookupTool(GameDataTool):
         return await self._cached_call(self._lookup, title)
 
     async def _lookup(self, title: str) -> list[dict]:
-        url = f"{ITAD_BASE}/v02/game/plain/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"key": settings.itad_api_key, "title": title, "limit": 5},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return [
-                {
-                    "plain": game["plain"],
-                    "title": game["title"],
-                    "type": game.get("type"),
-                    "released": game.get("released"),
-                }
-                for game in data.get("data", {}).get("list", [])
-            ]
+        resp = await get_http_client().get(
+            f"{ITAD_BASE}/v02/game/plain/",
+            params={"key": settings.itad_api_key, "title": title, "limit": 5},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return [
+            {
+                "plain": game["plain"],
+                "title": game["title"],
+                "type": game.get("type"),
+                "released": game.get("released"),
+            }
+            for game in data.get("data", {}).get("list", [])
+        ]
 
 
 class ITADPricesTool(GameDataTool):
@@ -50,35 +61,20 @@ class ITADPricesTool(GameDataTool):
         return await self._cached_call(self._get_prices, game_plain)
 
     async def _get_prices(self, game_plain: str) -> dict:
-        url = f"{ITAD_BASE}/v01/game/prices/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={
-                    "key": settings.itad_api_key,
-                    "plains": game_plain,
-                    "region": "CN",
-                    "country": "CN",
-                },
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            game_data = data.get("data", {}).get(game_plain, {})
-            deals = game_data.get("list", [])
-            return {
-                "game": game_plain,
-                "prices": [
-                    {
-                        "shop": deal.get("shop", {}).get("name"),
-                        "price_new": deal.get("price_new"),
-                        "price_old": deal.get("price_old"),
-                        "price_cut": deal.get("price_cut"),
-                        "url": deal.get("url"),
-                    }
-                    for deal in deals
-                ],
-            }
+        game_data = await _itad_price_data(game_plain)
+        return {
+            "game": game_plain,
+            "prices": [
+                {
+                    "shop": deal.get("shop", {}).get("name"),
+                    "price_new": deal.get("price_new"),
+                    "price_old": deal.get("price_old"),
+                    "price_cut": deal.get("price_cut"),
+                    "url": deal.get("url"),
+                }
+                for deal in game_data.get("list", [])
+            ],
+        }
 
 
 class ITADHistoryTool(GameDataTool):
@@ -91,33 +87,17 @@ class ITADHistoryTool(GameDataTool):
         return await self._cached_call(self._get_history, game_plain)
 
     async def _get_history(self, game_plain: str) -> dict:
-        url = f"{ITAD_BASE}/v01/game/prices/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={
-                    "key": settings.itad_api_key,
-                    "plains": game_plain,
-                    "region": "CN",
-                    "country": "CN",
-                    "history": "1",
-                },
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            game_data = data.get("data", {}).get(game_plain, {})
-            deals = game_data.get("list", [])
-            return {
-                "game": game_plain,
-                "current_lowest": game_data.get("price"),
-                "history": [
-                    {
-                        "shop": deal.get("shop", {}).get("name"),
-                        "price_new": deal.get("price_new"),
-                        "price_old": deal.get("price_old"),
-                        "price_cut": deal.get("price_cut"),
-                    }
-                    for deal in deals
-                ],
-            }
+        game_data = await _itad_price_data(game_plain, history=True)
+        return {
+            "game": game_plain,
+            "current_lowest": game_data.get("price"),
+            "history": [
+                {
+                    "shop": deal.get("shop", {}).get("name"),
+                    "price_new": deal.get("price_new"),
+                    "price_old": deal.get("price_old"),
+                    "price_cut": deal.get("price_cut"),
+                }
+                for deal in game_data.get("list", [])
+            ],
+        }

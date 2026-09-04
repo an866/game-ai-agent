@@ -1,9 +1,8 @@
 """Steam API 工具 —— 游戏搜索、详情、新闻、在线人数"""
 
 from typing import Any
-import httpx
 from config.settings import get_settings
-from src.tools.base import GameDataTool
+from src.tools.base import GameDataTool, get_http_client
 
 settings = get_settings()
 
@@ -19,24 +18,21 @@ class SteamSearchTool(GameDataTool):
 
     async def _search(self, query: str) -> list[dict]:
         url = "https://store.steampowered.com/api/storesearch/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"term": query, "l": "zh", "cc": "CN"},
-                headers={"User-Agent": "GameAI-Agent/1.0"},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            items = data.get("items", [])[:10]
-            return [
-                {
-                    "appid": item["id"],
-                    "name": item["name"],
-                    "type": "steam",
-                }
-                for item in items
-            ]
+        resp = await get_http_client().get(
+            url,
+            params={"term": query, "l": "zh", "cc": "CN"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("items", [])[:10]
+        return [
+            {
+                "appid": item["id"],
+                "name": item["name"],
+                "type": "steam",
+            }
+            for item in items
+        ]
 
 
 class SteamDetailTool(GameDataTool):
@@ -50,37 +46,34 @@ class SteamDetailTool(GameDataTool):
 
     async def _get_details(self, appid: int) -> dict:
         url = "https://store.steampowered.com/api/appdetails/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"appids": appid, "l": "zh", "cc": "CN"},
-                headers={"User-Agent": "GameAI-Agent/1.0"},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            game_data = data.get(str(appid), {})
-            if not game_data.get("success"):
-                return {"error": "获取游戏详情失败"}
+        resp = await get_http_client().get(
+            url,
+            params={"appids": appid, "l": "zh", "cc": "CN"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        game_data = data.get(str(appid), {})
+        if not game_data.get("success"):
+            return {"error": "获取游戏详情失败"}
 
-            info = game_data["data"]
-            return {
-                "name": info.get("name"),
-                "steam_appid": info.get("steam_appid"),
-                "short_description": info.get("short_description"),
-                "developers": info.get("developers", []),
-                "publishers": info.get("publishers", []),
-                "release_date": info.get("release_date", {}).get("date"),
-                "genres": [g["description"] for g in info.get("genres", [])],
-                "categories": [c["description"] for c in info.get("categories", [])],
-                "is_free": info.get("is_free", False),
-                "price_overview": info.get("price_overview", {}),
-                "metacritic": info.get("metacritic", {}),
-                "recommendations": info.get("recommendations", {}).get("total"),
-                "header_image": info.get("header_image"),
-                "platforms": {k: v for k, v in info.get("platforms", {}).items() if v},
-                "supported_languages": info.get("supported_languages"),
-            }
+        info = game_data["data"]
+        return {
+            "name": info.get("name"),
+            "steam_appid": info.get("steam_appid"),
+            "short_description": info.get("short_description"),
+            "developers": info.get("developers", []),
+            "publishers": info.get("publishers", []),
+            "release_date": info.get("release_date", {}).get("date"),
+            "genres": [g["description"] for g in info.get("genres", [])],
+            "categories": [c["description"] for c in info.get("categories", [])],
+            "is_free": info.get("is_free", False),
+            "price_overview": info.get("price_overview", {}),
+            "metacritic": info.get("metacritic", {}),
+            "recommendations": info.get("recommendations", {}).get("total"),
+            "header_image": info.get("header_image"),
+            "platforms": {k: v for k, v in info.get("platforms", {}).items() if v},
+            "supported_languages": info.get("supported_languages"),
+        }
 
 
 class SteamNewsTool(GameDataTool):
@@ -94,24 +87,22 @@ class SteamNewsTool(GameDataTool):
 
     async def _get_news(self, appid: int, count: int = 5) -> list[dict]:
         url = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"appid": appid, "count": count, "feeds": "steam_community_announcements"},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            items = data.get("appnews", {}).get("newsitems", [])
-            return [
-                {
-                    "title": item["title"],
-                    "url": item["url"],
-                    "author": item.get("author"),
-                    "date": item.get("date"),
-                }
-                for item in items
-            ]
+        resp = await get_http_client().get(
+            url,
+            params={"appid": appid, "count": count, "feeds": "steam_community_announcements"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("appnews", {}).get("newsitems", [])
+        return [
+            {
+                "title": item["title"],
+                "url": item["url"],
+                "author": item.get("author"),
+                "date": item.get("date"),
+            }
+            for item in items
+        ]
 
 
 class SteamCurrentPlayersTool(GameDataTool):
@@ -125,15 +116,13 @@ class SteamCurrentPlayersTool(GameDataTool):
 
     async def _get_players(self, appid: int) -> dict:
         url = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"appid": appid},
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return {
-                "appid": appid,
-                "current_players": data.get("response", {}).get("player_count", 0),
-            }
+        resp = await get_http_client().get(
+            url,
+            params={"appid": appid},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return {
+            "appid": appid,
+            "current_players": data.get("response", {}).get("player_count", 0),
+        }

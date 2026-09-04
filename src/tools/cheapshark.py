@@ -1,8 +1,14 @@
 """CheapShark API 工具 —— 游戏折扣查询（免费，无需 API Key）"""
 
 from typing import Any
-import httpx
-from src.tools.base import GameDataTool
+from src.tools.base import GameDataTool, get_http_client
+
+
+def _discount_percent(normal_price: float, sale_price: float) -> float:
+    """计算折扣百分比（免费游戏 normal=0 时返回 0）"""
+    if normal_price <= 0:
+        return 0.0
+    return round((normal_price - sale_price) / normal_price * 100, 1)
 
 
 class CheapSharkDealsTool(GameDataTool):
@@ -28,22 +34,24 @@ class CheapSharkDealsTool(GameDataTool):
         if upper_price is not None:
             params["upperPrice"] = str(upper_price)
 
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, params=params, timeout=self.request_timeout)
-            resp.raise_for_status()
-            deals = resp.json()
-            return [
-                {
-                    "deal_id": d["dealID"],
-                    "title": d["title"],
-                    "sale_price": float(d["salePrice"]),
-                    "normal_price": float(d["normalPrice"]),
-                    "savings": float(d["savings"]),
-                    "discount_percent": round(float(d["savings"])),
-                    "store_name": d.get("storeID", "Unknown"),
-                    "metacritic_score": d.get("metacriticScore"),
-                    "steam_rating": d.get("steamRatingText"),
-                    "thumb": d.get("thumb"),
-                }
-                for d in deals
-            ]
+        resp = await get_http_client().get(url, params=params)
+        resp.raise_for_status()
+        deals = resp.json()
+        return [
+            {
+                "deal_id": d["dealID"],
+                "title": d["title"],
+                "sale_price": float(d["salePrice"]),
+                "normal_price": float(d["normalPrice"]),
+                # savings 是美元金额；折扣百分比需要自己从原价/现价计算
+                "savings": float(d["savings"]),
+                "discount_percent": _discount_percent(
+                    float(d["normalPrice"]), float(d["salePrice"])
+                ),
+                "store_name": d.get("storeID", "Unknown"),
+                "metacritic_score": d.get("metacriticScore"),
+                "steam_rating": d.get("steamRatingText"),
+                "thumb": d.get("thumb"),
+            }
+            for d in deals
+        ]

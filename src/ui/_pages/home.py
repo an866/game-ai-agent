@@ -35,7 +35,7 @@ def load_stats(_cache_buster: int = 0) -> dict:
             deals = run_async_safe(tool._arun("", on_sale=True))
             if deals:
                 best = deals[0]
-                return f"{best['savings']:.0f}% ({best['title'][:20]})"
+                return f"{best['discount_percent']:.0f}% ({best['title'][:20]})"
         except Exception:
             pass
         return "-"

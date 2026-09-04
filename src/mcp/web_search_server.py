@@ -7,9 +7,9 @@ DDG 优先（免费），失败/超时自动回退到 Tavily。
 """
 
 import asyncio
-import httpx
 from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
+from src.tools.base import get_http_client
 
 mcp = FastMCP("web-search")
 
@@ -42,9 +42,8 @@ async def web_search(query: str, max_results: int = 5) -> list[dict]:
 async def _search_ddg(query: str, max_results: int = 5) -> list[dict]:
     """DuckDuckGo HTML 搜索（免费）"""
     url = "https://html.duckduckgo.com/html/"
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        resp = await client.get(url, params={"q": query}, timeout=8.0)
-        resp.raise_for_status()
+    resp = await get_http_client().get(url, params={"q": query}, timeout=8.0)
+    resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "html.parser")
     results = []
