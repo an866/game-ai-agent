@@ -85,8 +85,10 @@ def render_price_panel() -> None:
                     if st.button("删除", key=f"btn_{item['id']}"):
                         st.session_state[delete_key] = True
                     if st.session_state.get(delete_key):
+                        # 对话框是 fragment，事件触发在循环结束后——必须用默认参数按值绑定
+                        # (直接闭包循环变量会删到最后一行，AppTest 无法覆盖此类缺陷)
                         @st.dialog("确认删除")
-                        def confirm_del():
+                        def confirm_del(item=item, delete_key=delete_key):
                             st.warning(f"确定要移除 **{item['game_name']}** 的监控吗？")
                             c1, c2 = st.columns(2)
                             with c1:
