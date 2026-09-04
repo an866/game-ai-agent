@@ -1,8 +1,7 @@
 """LangGraph 多智能体编排 —— Supervisor 模式"""
 
 from typing import TypedDict, Annotated, AsyncGenerator
-import yaml
-from pathlib import Path
+from config.loader import get_agents_config
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -17,9 +16,7 @@ from config.settings import get_settings
 
 settings = get_settings()
 
-config_path = Path(__file__).parent.parent.parent / "config" / "agents.yaml"
-with open(config_path, encoding="utf-8") as f:
-    prompts = yaml.safe_load(f)
+prompts = get_agents_config()
 
 
 class GameAgentState(TypedDict):

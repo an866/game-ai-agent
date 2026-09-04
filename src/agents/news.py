@@ -1,7 +1,6 @@
 """新闻聚合 Agent —— RAG 混合检索 + 多源聚合"""
 
-import yaml
-from pathlib import Path
+from config.loader import get_agents_config
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -14,9 +13,7 @@ from src.rag.retriever import _format_docs
 
 settings = get_settings()
 
-config_path = Path(__file__).parent.parent.parent / "config" / "agents.yaml"
-with open(config_path, encoding="utf-8") as f:
-    prompts = yaml.safe_load(f)
+prompts = get_agents_config()
 
 
 def get_news_llm() -> ChatOpenAI:

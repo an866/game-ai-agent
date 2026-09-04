@@ -1,8 +1,8 @@
 """游戏查询 Agent —— 获取游戏详细信息"""
 
-import yaml
-from pathlib import Path
+from config.loader import get_agents_config
 from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 from config.settings import get_settings
@@ -11,13 +11,10 @@ from src.tools.rawg import RAWGGameSearchTool, RAWGGameDetailTool, RAWGGameScree
 
 settings = get_settings()
 
-config_path = Path(__file__).parent.parent.parent / "config" / "agents.yaml"
-with open(config_path, encoding="utf-8") as f:
-    prompts = yaml.safe_load(f)
+prompts = get_agents_config()
 
 
-def get_query_llm():
-    from langchain_openai import ChatOpenAI
+def get_query_llm() -> ChatOpenAI:
     return ChatOpenAI(
         model=settings.llm_model,
         api_key=settings.openai_api_key,

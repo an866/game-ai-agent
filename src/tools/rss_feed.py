@@ -43,15 +43,10 @@ class RSSFetchAllTool(GameDataTool):
         return await self._cached_call(self._fetch_all)
 
     async def _fetch_all(self) -> list[dict]:
-        import yaml
-        from pathlib import Path
-
-        config_path = Path(__file__).parent.parent.parent / "config" / "rss_sources.yaml"
-        with open(config_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+        sources = get_rss_sources()
 
         all_articles = []
-        for source in config.get("sources", []):
+        for source in sources:
             try:
                 fetch_tool = RSSFetchTool()
                 articles = await fetch_tool._fetch(source["url"])

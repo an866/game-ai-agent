@@ -1,7 +1,6 @@
 """游戏推荐 Agent —— 根据用户偏好推荐类似游戏"""
 
-import yaml
-from pathlib import Path
+from config.loader import get_agents_config
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
@@ -12,9 +11,7 @@ from src.tools.web_search import WebSearchTool
 
 settings = get_settings()
 
-config_path = Path(__file__).parent.parent.parent / "config" / "agents.yaml"
-with open(config_path, encoding="utf-8") as f:
-    prompts = yaml.safe_load(f)
+prompts = get_agents_config()
 
 
 def get_recommend_llm() -> ChatOpenAI:

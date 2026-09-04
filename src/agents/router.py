@@ -29,12 +29,7 @@ def get_router_llm() -> ChatOpenAI:
 
 def build_router_chain():
     """构建路由链 —— LLM + 结构化输出"""
-    import yaml
-    from pathlib import Path
-
-    config_path = Path(__file__).parent.parent.parent / "config" / "agents.yaml"
-    with open(config_path, encoding="utf-8") as f:
-        prompts = yaml.safe_load(f)
+    prompts = get_agents_config()
 
     llm = get_router_llm()
     structured_llm = llm.with_structured_output(RouterDecision)
