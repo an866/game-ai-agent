@@ -67,8 +67,8 @@ class TestCompress:
         """压缩后消息数应减少到 recent_keep 条"""
         mem = ConversationMemory()
         msgs = [
-            {"role": "user", "content": f"消息{i}"},
-            {"role": "assistant", "content": f"回复{i}"},
+            {"role": "user", "content": "消息"},
+            {"role": "assistant", "content": "回复"},
         ] * 10  # 20 条消息
         # 压缩: recent_keep=8, 应返回 8 条 + 摘要
         compacted, summary = await mem.compress(msgs, recent_keep=8)
