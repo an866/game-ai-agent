@@ -1,4 +1,10 @@
-"""Streamlit 跨页面会话状态管理"""
+"""UI V2 会话状态 —— 异步桥 + 聊天会话系统
+
+UI V2 之后页面状态统一走 ui_state.py（分区管理、切换不丢）；
+本模块只保留两件事：
+1. run_async_safe —— Streamlit 同步上下文安全运行 async 协程的桥；
+2. 聊天会话系统（chat_sessions / active_session_id）。
+"""
 
 import streamlit as st
 from src.utils.async_utils import run_coro_sync
@@ -11,35 +17,6 @@ def run_async_safe(coro):
     每次新事件循环且不 close（避免 SQLAlchemy 池清理崩溃）。
     """
     return run_coro_sync(lambda: coro)
-
-
-def init_session_state():
-    """初始化共享会话状态"""
-    defaults = {
-        "chat_messages": [],
-        "watchlist_cache": None,
-        "price_alerts_cache": None,
-        "search_results": None,
-        "recommend_results": None,
-        "agent_graph": None,
-    }
-    for key, default in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = default
-
-
-def get_chat_history() -> list[dict]:
-    """获取对话历史列表（用于展示历史记录）"""
-    if "chat_messages" not in st.session_state:
-        st.session_state["chat_messages"] = []
-    return st.session_state["chat_messages"]
-
-
-def add_chat_message(role: str, content: str):
-    """添加一条对话消息"""
-    if "chat_messages" not in st.session_state:
-        st.session_state["chat_messages"] = []
-    st.session_state["chat_messages"].append({"role": role, "content": content})
 
 
 def init_chat_sessions():

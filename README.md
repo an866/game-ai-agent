@@ -5,7 +5,7 @@ PC 游戏信息查询、价格追踪、新闻聚合、智能推荐的 AI 助手�
 ## 架构
 
 ```
-src/main.py  ──┬─ ui        → Streamlit (src/ui/app.py → _pages/*6)
+src/main.py  ──┬─ ui        → Streamlit (src/ui/app.py 单页 V2：聊天 + 工具面板)
  (CLI 入口)    ├─ scheduler → APScheduler (价格巡检 6h / 新闻抓取 2h / 清理 3:07)
                └─ init-db   → 建表
 
@@ -21,6 +21,12 @@ src/deps.py        组合根（进程级单例唯一定义处，override() 供�
 src/utils/         stream_bridge / async_utils（单例线程池 + 不 close loop）
 config/            settings.py（pydantic-settings）/ loader.py（YAML 单例加载器）
 ```
+
+## UI（V2）
+
+单页三列架构：图标栏（sidebar）+ 模式分发（`ui["tab"]`）+ 三套可切换主题
+（theme.py，霓虹电竞默认）。聊天为中心，其余功能为工具面板（src/ui/panels/）。
+UI 代码禁止裸 HEX 颜色 —— 一律使用 theme.py 的 CSS 变量（tests/test_theme.py 扫描）。
 
 ## 快速开始
 

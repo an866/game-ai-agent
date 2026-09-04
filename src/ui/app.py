@@ -7,13 +7,12 @@
 import streamlit as st
 
 from src.ui import ui_state, theme
-from src.ui.session_state import init_session_state, init_chat_sessions
+from src.ui.session_state import init_chat_sessions
 
 st.set_page_config(page_title="游戏 AI 助手", page_icon="🎮",
                    layout="wide", initial_sidebar_state="expanded")
 
 ui_state.init_ui_state()
-init_session_state()
 init_chat_sessions()
 
 theme.inject_theme(ui_state.get_theme())

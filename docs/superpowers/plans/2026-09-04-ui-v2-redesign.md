@@ -2251,3 +2251,11 @@ Task 5 卡片升级 ────────────────────
 1. **"停止按钮"本轮不做**：纯 Streamlit 脚本模型下，流式循环内无法响应用户点击（按钮事件在下一次 rerun 才生效，而流式过程阻塞在当次 rerun 中）。与 `st.fragment` 优化一起列入后续备选（spec 已列）。
 2. **chat/session_list 的删除确认**：V1 的 `st.dialog` 确认保留在面板内（Task 13 同款模式），Task 7 先提供轻量删除，Task 9 chat_panel 编排时不冲突。
 3. **theme.get_theme_css 的动画注入**在 Task 15 统一补齐（Task 8 依赖它但不阻塞）。
+
+## 执行备注（Task 15 收尾时追加）
+
+- 聊天 DB 历史恢复（load_recent）未迁移：fresh session id 无法恢复（既有局限，
+  旧页面同）。正确修复需 durable sid + ChatService.list_sessions API —— 记录为后续优化。
+- 删除确认对话框闭包陷阱（删错行）已在本轮修复（panels 与迁移源双修）。
+- AppTest 无法覆盖 st.dialog 事件（streamlit.testing 无支持）—— 对话框交互以
+  真实浏览器冒烟为准。

@@ -50,12 +50,21 @@ h1, h2, h3, h4 { color: var(--text); }
 hr { border-color: var(--border); }
 """
 
+# 流式输出光标动画（chat_panel 的 .streaming-cursor 依赖）
+_EXTRA_ANIMATIONS = """
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: .2; }
+  100% { opacity: 1; }
+}
+"""
+
 
 def get_theme_css(theme: str) -> str:
-    """主题名 → 完整 CSS 字符串（:root 变量 + 覆盖样式）"""
+    """主题名 → 完整 CSS 字符串（:root 变量 + 覆盖样式 + 动画）"""
     vars_ = THEME_VARS.get(theme, THEME_VARS[DEFAULT_THEME])
     var_block = ":root {\n" + "\n".join(f"  {k}: {v};" for k, v in vars_.items()) + "\n}"
-    return var_block + "\n" + _BASE_OVERRIDES + "\n"
+    return var_block + "\n" + _BASE_OVERRIDES + "\n" + _EXTRA_ANIMATIONS
 
 
 def inject_theme(theme: str) -> None:

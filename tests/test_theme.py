@@ -48,13 +48,17 @@ class TestThemeVariables:
             assert key in css
         assert ":root" in css
 
+    def test_theme_css_has_blink_keyframes(self):
+        css = theme.get_theme_css("neon")
+        assert "@keyframes blink" in css
+
 
 class TestNoBareHexInUI:
     """硬性约定：UI 代码禁止裸 HEX（theme.py 本身除外）"""
 
     UI_DIRS = [
         "src/ui/components", "src/ui/panels", "src/ui/chat",
-        "src/ui/_pages", "src/ui/app.py",
+        "src/ui/app.py",
     ]
 
     @pytest.mark.parametrize("path", [
