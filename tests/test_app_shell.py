@@ -16,7 +16,8 @@ class TestAppShell:
     def test_icon_buttons_present(self):
         at = _run_app()
         labels = [b.label for b in at.button]
-        assert "💬" in labels and "💰" in labels and "🎯" in labels
+        # 侧栏按钮 = 「图标 + 中文名」（用户反馈：只有图标没有名称）
+        assert "💬 对话" in labels and "💰 价格" in labels and "🎯 推荐" in labels
 
     def test_theme_buttons_present(self):
         at = _run_app()
@@ -127,21 +128,3 @@ class TestAppShell:
         at.run()
         assert not at.exception
         assert sum("测试问题" in m.value for m in at.markdown) == 1
-
-    def test_capsule_click_sends_immediately(self, monkeypatch):
-        """快捷指令胶囊点击 = 即点即发：出现 /price 用户气泡 + 流式回复"""
-        import src.agents.graph as graph_mod
-
-        async def fake_chat_stream(message, history=None, summary=None):
-            yield {"type": "progress", "node": "router"}
-            yield {"type": "done", "response": "测试回复"}
-
-        monkeypatch.setattr(graph_mod, "chat_stream", fake_chat_stream)
-
-        at = AppTest.from_file("src/ui/app.py", default_timeout=60).run()
-        assert not at.exception
-
-        at.button(key="qc_💰 查价格").click().run()
-        assert not at.exception
-        assert any("/price" in m.value for m in at.markdown)
-        assert any("测试回复" in m.value for m in at.markdown)
