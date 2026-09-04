@@ -1,6 +1,7 @@
 """游戏新闻页"""
 
 import streamlit as st
+from loguru import logger
 from src.ui.session_state import run_async_safe
 from src.ui.components._loading import show_loading
 from src.ui.components._error import show_error
@@ -59,7 +60,8 @@ with tab2:
             from src.tools.rss_feed import RSSFetchAllTool
             tool = RSSFetchAllTool()
             return run_async_safe(tool._arun())
-        except Exception:
+        except Exception as exc:
+            logger.warning(f"RSS 加载失败: {exc}")
             return None
 
     if st.button("刷新新闻"):

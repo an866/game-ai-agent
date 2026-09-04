@@ -1,6 +1,7 @@
 """新闻聚合 Agent —— RAG 混合检索 + 多源聚合"""
 
 from config.loader import get_agents_config
+from loguru import logger
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -46,7 +47,8 @@ async def run_news(state: dict) -> dict:
                 appid = steam_results[0]["appid"]
                 news_tool = SteamNewsTool()
                 results["steam_news"] = await news_tool._arun(appid)
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"Steam 新闻获取失败: {exc}")
         results["steam_news"] = []
 
     try:
@@ -55,13 +57,15 @@ async def run_news(state: dict) -> dict:
             results["genshin_news"] = await genshin_tool._arun(5)
             events_tool = GenshinEventsTool()
             results["genshin_events"] = await events_tool._arun()
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"原神新闻获取失败: {exc}")
         results["genshin_news"] = []
 
     try:
         rss_tool = RSSFetchAllTool()
         results["rss_news"] = await rss_tool._arun()
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"RSS 新闻获取失败: {exc}")
         results["rss_news"] = []
 
     # 3. LLM 生成最终回复

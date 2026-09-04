@@ -65,16 +65,16 @@ class GameDataTool(BaseTool, ABC):
             if cached:
                 logger.debug(f"[Cache HIT] {self.name}")
                 return json.loads(cached)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"[Cache MISS 读失败] {self.name}: {exc}")
 
         result = await self._call_with_retry(func, *args, **kwargs)
 
         try:
             redis = await get_redis()
             await redis.setex(cache_key, self.cache_ttl, json.dumps(result, ensure_ascii=False))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"[Cache 写失败] {self.name}: {exc}")
 
         return result
 

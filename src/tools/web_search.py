@@ -2,6 +2,7 @@
 
 from typing import Any
 from pydantic import BaseModel, Field
+from loguru import logger
 from src.tools.base import GameDataTool, get_headers
 
 
@@ -31,15 +32,16 @@ class WebSearchTool(GameDataTool):
             return await asyncio.wait_for(
                 self._search_ddg(query, max_results), timeout=8.0
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"DDG 搜索失败，回退 Tavily: {exc}")
 
         # 第2次：Tavily 回退（10 秒超时）
         try:
             return await asyncio.wait_for(
                 self._search_tavily(query, max_results), timeout=10.0
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning(f"Tavily 搜索也失败: {exc}")
             return [{"title": "搜索失败", "snippet": "当前无法联网搜索，请稍后重试", "url": ""}]
 
     async def _search_ddg(self, query: str, max_results: int = 5) -> list[dict]:

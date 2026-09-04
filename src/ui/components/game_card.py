@@ -1,6 +1,7 @@
 """游戏卡片组件 —— 搜索结果与推荐列表共用"""
 
 import streamlit as st
+from loguru import logger
 from src.ui.session_state import run_async_safe
 
 
@@ -29,7 +30,8 @@ def render_game_detail(game: dict) -> None:
                 st.link_button("官网", detail["website"])
         else:
             st.info("暂无详细信息")
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"游戏详情加载失败 [{game.get('name')}]: {exc}")
         st.info("详情加载失败")
 
 

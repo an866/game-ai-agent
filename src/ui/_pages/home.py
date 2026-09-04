@@ -2,85 +2,19 @@
 
 import streamlit as st
 from src.ui.session_state import run_async_safe
-from src.deps import get_session_factory
-from src.data.repository import WatchlistRepository, PriceAlertRepository
+from src.services.dashboard_service import get_dashboard_stats, get_hot_players
 
 
 @st.cache_data(ttl=120, show_spinner=False)
 def load_stats(_cache_buster: int = 0) -> dict:
     """加载首页仪表盘统计数据（缓存 120 秒）"""
-    async def _fetch():
-        async with get_session_factory()() as session:
-            watchlist_count = await WatchlistRepository(session).get_count()
-            alert_count = await PriceAlertRepository(session).get_count_unread()
-        return {
-            "watchlist": watchlist_count,
-            "alerts": alert_count,
-        }
-
-    def _chroma_count():
-        """获取 ChromaDB 新闻文档总数"""
-        try:
-            from src.rag.store import get_doc_count
-            return get_doc_count()
-        except Exception:
-            return 0
-
-    def _best_deal():
-        """获取今日最低折扣"""
-        try:
-            from src.tools.cheapshark import CheapSharkDealsTool
-            tool = CheapSharkDealsTool()
-            deals = run_async_safe(tool._arun("", on_sale=True))
-            if deals:
-                best = deals[0]
-                return f"{best['discount_percent']:.0f}% ({best['title'][:20]})"
-        except Exception:
-            pass
-        return "-"
-
-    stats = run_async_safe(_fetch())
-    stats["news_count"] = _chroma_count()
-    stats["best_deal"] = _best_deal()
-    return stats
+    return run_async_safe(get_dashboard_stats())
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_hot_games(_cache_buster: int = 0) -> list[dict]:
     """加载热门游戏实时在线人数（缓存 5 分钟）"""
-    hot_games_config = [
-        {"name": "Counter-Strike 2", "appid": 730},
-        {"name": "Dota 2", "appid": 570},
-        {"name": "PUBG: BATTLEGROUNDS", "appid": 578080},
-        {"name": "Apex Legends", "appid": 1172470},
-        {"name": "Genshin Impact", "appid": None},
-    ]
-
-    async def _fetch_players():
-        from src.tools.steam_api import SteamCurrentPlayersTool
-        tool = SteamCurrentPlayersTool()
-        results = {}
-        for game in hot_games_config:
-            if game["appid"] is None:
-                results[game["name"]] = None
-                continue
-            try:
-                data = await tool._arun(game["appid"])
-                results[game["name"]] = data.get("current_players", 0)
-            except Exception:
-                results[game["name"]] = None
-        return results
-
-    players = run_async_safe(_fetch_players())
-
-    result = []
-    for game in hot_games_config:
-        count = players.get(game["name"])
-        if count is not None:
-            result.append({"name": game["name"], "players": f"{count:,}"})
-        else:
-            result.append({"name": game["name"], "players": "-"})
-    return result
+    return run_async_safe(get_hot_players())
 
 
 st.title("游戏 AI 助手")

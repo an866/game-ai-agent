@@ -7,6 +7,7 @@ DDG 优先（免费），失败/超时自动回退到 Tavily。
 """
 
 import asyncio
+import sys
 from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
 from src.tools.base import get_http_client
@@ -27,15 +28,16 @@ async def web_search(query: str, max_results: int = 5) -> list[dict]:
         return await asyncio.wait_for(
             _search_ddg(query, max_results), timeout=8.0
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"DDG 搜索失败，回退 Tavily: {exc}", file=sys.stderr)
 
     # 第2次: Tavily 回退
     try:
         return await asyncio.wait_for(
             _search_tavily(query, max_results), timeout=10.0
         )
-    except Exception:
+    except Exception as exc:
+        print(f"web_search 失败: {exc}", file=sys.stderr)
         return [{"title": "搜索失败", "snippet": "当前无法联网搜索，请稍后重试", "url": ""}]
 
 
