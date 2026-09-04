@@ -1,4 +1,4 @@
-"""快捷指令 —— 输入框上方的行为胶囊（点击填入输入框，不自动发送）"""
+"""快捷指令 —— 输入框上方的行为胶囊（点击即发送对应指令，模板空位由 LLM 补全）"""
 
 import streamlit as st
 
@@ -26,7 +26,7 @@ def build_prompt(label: str, game_name: str = "") -> str:
 
 
 def render_quick_commands() -> None:
-    """渲染快捷指令胶囊行；点击写入 ui_state.panel_state['chat']['draft']"""
+    """渲染快捷指令胶囊行；点击写入 draft，chat_panel 下一 run 即点即发"""
     from src.ui import ui_state
 
     cols = st.columns(len(QUICK_COMMANDS))

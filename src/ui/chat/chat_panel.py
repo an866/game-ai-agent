@@ -152,18 +152,17 @@ def render_chat_panel() -> None:
         else:
             render_message_list(history)
 
-        # 输入区（V3: last_submitted 哨兵防误提交/防重复提交，永不 pop widget key；
-        # 提交后文本保留在输入框——text_input 无法程序化清空，哨兵保证不会重复发送）
+        # 输入区（V4: 胶囊即点即发 + last_submitted 哨兵防重复提交；永不 pop widget key）
         render_quick_commands()
         draft = ui_state.get_panel_state("chat").get("draft", "")
-        if draft and draft != ui_state.get_panel_state("chat").get("last_submitted", ""):
-            # 胶囊草稿变更 → 写入 widget 初始值（pre-instantiation write）+ 标记为已知值，
-            # 本 run 不触发提交；与 last_submitted 相等时跳过，避免回填覆盖用户已输入的文本
+        if draft:
+            # 胶囊点击 = 即点即发：写入 widget 初始值，提交守卫 (prompt != last_submitted)
+            # 在下一 run 自然放行——Streamlit 无法区分"填充 run"与"填充后的用户 run"，
+            # 故不做"填入等回车"语义（与"停止按钮"同类限制）
             st.session_state["chat_input_v2"] = draft
-            ui_state.update_panel_state("chat", {"last_submitted": draft})
         prompt = st.text_input("输入问题...", key="chat_input_v2",
                                placeholder="输入问题，如：黑神话悟空现在多少钱？")
         if prompt and prompt != ui_state.get_panel_state("chat").get("last_submitted", ""):
-            # 用户改动了内容并回车 → 真实提交；同时清空草稿，防止下次 run 回填旧模板
+            # 提交 → 列入已知值（防重复提交）；同时清空草稿（防下次 run 回填旧模板）
             ui_state.update_panel_state("chat", {"last_submitted": prompt, "draft": ""})
             _submit_prompt(prompt)
