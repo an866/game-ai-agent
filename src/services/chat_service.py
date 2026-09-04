@@ -1,18 +1,21 @@
-"""对话记忆管理 —— 持久化 + Token 窗口压缩"""
+"""聊天记忆服务 —— 持久化 + Token 窗口压缩 + 画像提取
+
+UI 页面与 agent 的统一入口（前身 src/agents/memory.ConversationMemory）。
+消息缓冲与摘要由调用方（Streamlit session_state）管理，本服务无状态，
+仅提供方法；session_factory 与 llm_factory 可注入以便测试。
+"""
 
 import json
-from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from loguru import logger
-from sqlalchemy import select, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
+from src.data.repository import ChatHistoryRepository, UserPreferenceRepository
 from src.deps import get_session_factory
-from src.data.models import ChatHistory
+from src.llm import get_llm
 
 settings = get_settings()
 
@@ -21,6 +24,13 @@ COMPRESS_SYSTEM_PROMPT = (
     "你是一个对话摘要助手。请用一段话（不超过 3 句）总结以下对话的要点，"
     "只提取关键信息（如用户查询了什么游戏、获得了什么结果、表达了什么偏好），"
     "不要复述对话过程本身。用中文输出。"
+)
+
+PROFILE_EXTRACT_PROMPT = (
+    "根据以下对话摘要，提取用户的游戏偏好，严格输出JSON格式，不要包含任何其他文字：\n"
+    '{"favorite_genres":"","favorite_games":"","platforms":"","budget_range":""}\n'
+    "只提取对话中明确提到的信息，不要推测。没有信息的字段留空字符串。\n"
+    "对话摘要:\n{summary}"
 )
 
 
@@ -38,21 +48,16 @@ def build_profile_text(profile: dict) -> str:
     return "用户画像: " + "；".join(parts) + "。" if parts else ""
 
 
-class ConversationMemory:
-    """无状态记忆服务 —— 提供 DB 读写、压缩判定、LLM 摘要、上下文构建。
+class ChatService:
+    """聊天记忆服务 —— DB 读写、压缩判定、LLM 摘要、画像、上下文构建。"""
 
-    消息 buffer 和摘要存储在 Streamlit st.session_state 中（调用方管理），
-    本类仅提供纯方法，不持有任何实例状态。
-    """
-
-    PROFILE_EXTRACT_PROMPT = (
-        "根据以下对话摘要，提取用户的游戏偏好，严格输出JSON格式，不要包含任何其他文字：\n"
-        '{"favorite_genres":"","favorite_games":"","platforms":"","budget_range":""}\n'
-        "只提取对话中明确提到的信息，不要推测。没有信息的字段留空字符串。\n"
-        "对话摘要:\n{summary}"
-    )
-
-    def __init__(self):
+    def __init__(
+        self,
+        session_factory: Callable | None = None,
+        llm_factory: Callable[[str], ChatOpenAI] | None = None,
+    ):
+        self._session_factory = session_factory or get_session_factory
+        self._llm_factory = llm_factory or (lambda role, **kw: get_llm(role, **kw))
         self._compress_llm: Optional[ChatOpenAI] = None
 
     # ── DB 读写 ──────────────────────────────────────────
@@ -66,15 +71,8 @@ class ConversationMemory:
     ) -> bool:
         """持久化一条消息到 MySQL。DB 不可用时返回 False 并 log warning。"""
         try:
-            async with get_session_factory()() as db:
-                msg = ChatHistory(
-                    session_id=session_id,
-                    role=role,
-                    content=content,
-                    intent=intent,
-                )
-                db.add(msg)
-                await db.commit()
+            async with self._session_factory()() as db:
+                await ChatHistoryRepository(db).add(session_id, role, content, intent)
             return True
         except Exception as exc:
             logger.warning(f"消息持久化失败 (session={session_id}): {exc}")
@@ -83,18 +81,10 @@ class ConversationMemory:
     async def load_recent(
         self, session_id: str, limit: int = 20
     ) -> list[dict]:
-        """从 MySQL 加载指定会话的最近 N 条消息。DB 不可用时返回空列表。"""
+        """从 MySQL 加载指定会话的最近 N 条消息（时间升序）。"""
         try:
-            async with get_session_factory()() as db:
-                stmt = (
-                    select(ChatHistory)
-                    .where(ChatHistory.session_id == session_id)
-                    .order_by(desc(ChatHistory.created_at))
-                    .limit(limit)
-                )
-                result = await db.execute(stmt)
-                rows = result.scalars().all()
-            # 反转回时间升序（DB 是 desc 查的）
+            async with self._session_factory()() as db:
+                rows = await ChatHistoryRepository(db).get_recent(session_id, limit)
             rows = list(reversed(rows))
             return [
                 {"role": r.role, "content": r.content}
@@ -120,10 +110,9 @@ class ConversationMemory:
     # ── LLM 摘要 ──────────────────────────────────────────
 
     def _get_compress_llm(self) -> ChatOpenAI:
-        """LLM 实例（由 llm 工厂按角色缓存）"""
-        from src.llm import get_llm
+        """压缩用 LLM 实例（llm 工厂按角色缓存）"""
         if self._compress_llm is None:
-            self._compress_llm = get_llm("compress", max_tokens=200)
+            self._compress_llm = self._llm_factory("compress", max_tokens=200)
         return self._compress_llm
 
     async def compress(
@@ -160,7 +149,7 @@ class ConversationMemory:
             old_text_parts.append(f"[{tag}]: {m['content'][:300]}")
         old_text = "\n".join(old_text_parts)
 
-        # 调用 LLM 生成摘要
+        # 调用 LLM 生成摘要（失败降级为不压缩）
         llm = self._get_compress_llm()
         prompt = f"{COMPRESS_SYSTEM_PROMPT}\n\n对话内容:\n{old_text}"
         try:
@@ -171,14 +160,10 @@ class ConversationMemory:
             return messages, existing_summary or ""
 
         # 合并已有摘要
-        if existing_summary:
-            full_summary = f"{existing_summary}\n{new_summary}"
-        else:
-            full_summary = new_summary
+        full_summary = f"{existing_summary}\n{new_summary}" if existing_summary else new_summary
 
-        # 日志
         logger.info(
-            f"[ConversationMemory] 触发压缩 | "
+            f"[ChatService] 触发压缩 | "
             f"压缩前消息数={len(messages)} | "
             f"压缩后消息数={len(recent)} | "
             f'摘要="{new_summary[:100]}"'
@@ -192,12 +177,12 @@ class ConversationMemory:
         """LLM 从摘要中提取游戏偏好 → {"favorite_genres": "动作,RPG", ...}"""
         if not summary:
             return {}
-        llm = self._get_compress_llm()
-        prompt = self.PROFILE_EXTRACT_PROMPT.format(summary=summary)
+        llm = self._llm_factory("profile_extract", max_tokens=200)
+        prompt = PROFILE_EXTRACT_PROMPT.format(summary=summary)
         try:
             response = await llm.ainvoke([HumanMessage(content=prompt)])
             text = response.content.strip()
-            # Extract JSON (some models wrap in ```json ... ```)
+            # 兼容部分模型用 ```json 包裹输出
             if "```" in text:
                 text = text.split("```")[1]
                 if text.startswith("json"):
@@ -213,36 +198,9 @@ class ConversationMemory:
         if not profile:
             return False
         try:
-            async with get_session_factory()() as db:
-                from src.data.models import UserPreference
-                from sqlalchemy import update
-
-                result = await db.execute(
-                    select(UserPreference).where(UserPreference.session_id == session_id)
-                )
-                existing = result.scalar_one_or_none()
-                if existing:
-                    await db.execute(
-                        update(UserPreference)
-                        .where(UserPreference.session_id == session_id)
-                        .values(
-                            favorite_genres=profile.get("favorite_genres", ""),
-                            favorite_games=profile.get("favorite_games", ""),
-                            platforms=profile.get("platforms", ""),
-                            budget_range=profile.get("budget_range", ""),
-                        )
-                    )
-                else:
-                    pref = UserPreference(
-                        session_id=session_id,
-                        favorite_genres=profile.get("favorite_genres", ""),
-                        favorite_games=profile.get("favorite_games", ""),
-                        platforms=profile.get("platforms", ""),
-                        budget_range=profile.get("budget_range", ""),
-                    )
-                    db.add(pref)
-                await db.commit()
-            logger.info(f"[ConversationMemory] 画像已保存 (session={session_id}): {profile}")
+            async with self._session_factory()() as db:
+                await UserPreferenceRepository(db).upsert_profile(session_id, profile)
+            logger.info(f"[ChatService] 画像已保存 (session={session_id}): {profile}")
             return True
         except Exception as exc:
             logger.warning(f"画像保存失败 (session={session_id}): {exc}")
@@ -251,24 +209,8 @@ class ConversationMemory:
     async def load_profile(self, session_id: str) -> dict | None:
         """从 user_preferences 读取最新画像"""
         try:
-            async with get_session_factory()() as db:
-                from src.data.models import UserPreference
-
-                result = await db.execute(
-                    select(UserPreference)
-                    .where(UserPreference.session_id == session_id)
-                    .order_by(UserPreference.updated_at.desc())
-                    .limit(1)
-                )
-                row = result.scalar_one_or_none()
-                if row:
-                    return {
-                        "favorite_genres": row.favorite_genres or "",
-                        "favorite_games": row.favorite_games or "",
-                        "platforms": row.platforms or "",
-                        "budget_range": row.budget_range or "",
-                    }
-            return None
+            async with self._session_factory()() as db:
+                return await UserPreferenceRepository(db).get_profile(session_id)
         except Exception as exc:
             logger.warning(f"画像加载失败 (session={session_id}): {exc}")
             return None

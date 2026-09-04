@@ -3,16 +3,15 @@
 import streamlit as st
 from src.ui.session_state import (
     init_chat_sessions, create_chat_session, get_active_messages,
-    add_chat_session_message, switch_session,
+    add_chat_session_message, switch_session, run_async_safe,
 )
+from src.services.chat_service import ChatService
 
 # ── 记忆持久化辅助函数 ──
 
 def _after_message(sid: str, role: str, content: str):
     """消息添加后的持久化 + 压缩检查"""
-    from src.agents.memory import ConversationMemory
-    from src.ui.session_state import run_async_safe
-    mem = ConversationMemory()
+    mem = ChatService()
     run_async_safe(mem.save_message(sid, role, content))
     sessions = st.session_state["chat_sessions"]
     current_msgs = sessions[sid]["messages"]
@@ -46,10 +45,7 @@ history = get_active_messages()
 if not history:
     sid = st.session_state.get("active_session_id")
     if sid:
-        from src.agents.memory import ConversationMemory
-        from src.ui.session_state import run_async_safe
-
-        memory = ConversationMemory()
+        memory = ChatService()
         db_messages = run_async_safe(memory.load_recent(sid, limit=20))
         if db_messages:
             sessions = st.session_state["chat_sessions"]

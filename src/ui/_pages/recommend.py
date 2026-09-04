@@ -5,7 +5,7 @@ from src.ui.session_state import run_async_safe
 from src.ui.components._loading import show_loading
 from src.ui.components._error import show_error
 from src.ui.components.game_card import render_game_card
-from src.agents.memory import build_profile_text
+from src.services.chat_service import ChatService, build_profile_text
 
 st.title("游戏推荐")
 
@@ -15,8 +15,7 @@ st.markdown("输入你喜欢的游戏，AI 为你推荐相似的游戏")
 sid = st.session_state.get("active_session_id")
 user_profile = None
 if sid:
-    from src.agents.memory import ConversationMemory
-    mem = ConversationMemory()
+    mem = ChatService()
     user_profile = run_async_safe(mem.load_profile(sid))
 
 game_input = st.text_input("游戏名称", placeholder="例如: 巫师3, 原神, 空洞骑士...")

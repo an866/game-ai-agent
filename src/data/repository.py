@@ -115,15 +115,62 @@ class ChatHistoryRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def add(self, role: str, content: str, intent: str | None = None):
-        record = ChatHistory(role=role, content=content, intent=intent)
+    async def add(self, session_id: str, role: str, content: str, intent: str | None = None):
+        record = ChatHistory(session_id=session_id, role=role, content=content, intent=intent)
         self.session.add(record)
         await self.session.commit()
 
-    async def get_recent(self, limit: int = 50) -> list[ChatHistory]:
+    async def get_recent(self, session_id: str, limit: int = 50) -> list[ChatHistory]:
+        """按时间倒序取指定会话最近 N 条"""
         result = await self.session.execute(
             select(ChatHistory)
+            .where(ChatHistory.session_id == session_id)
             .order_by(ChatHistory.created_at.desc())
             .limit(limit)
         )
         return list(result.scalars().all())
+
+
+class UserPreferenceRepository:
+    """用户画像数据访问"""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def upsert_profile(self, session_id: str, profile: dict):
+        """写入或更新用户画像（全字段覆盖）"""
+        values = {
+            "favorite_genres": profile.get("favorite_genres", ""),
+            "favorite_games": profile.get("favorite_games", ""),
+            "platforms": profile.get("platforms", ""),
+            "budget_range": profile.get("budget_range", ""),
+        }
+        result = await self.session.execute(
+            select(UserPreference).where(UserPreference.session_id == session_id)
+        )
+        if result.scalar_one_or_none():
+            await self.session.execute(
+                update(UserPreference)
+                .where(UserPreference.session_id == session_id)
+                .values(**values)
+            )
+        else:
+            self.session.add(UserPreference(session_id=session_id, **values))
+        await self.session.commit()
+
+    async def get_profile(self, session_id: str) -> dict | None:
+        result = await self.session.execute(
+            select(UserPreference)
+            .where(UserPreference.session_id == session_id)
+            .order_by(UserPreference.updated_at.desc())
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            return {
+                "favorite_genres": row.favorite_genres or "",
+                "favorite_games": row.favorite_games or "",
+                "platforms": row.platforms or "",
+                "budget_range": row.budget_range or "",
+            }
+        return None

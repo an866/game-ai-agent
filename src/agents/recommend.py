@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 
 from config.settings import get_settings
-from src.agents.memory import build_profile_text
+from src.services.chat_service import build_profile_text
 from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool, RAWGGameDetailTool
 from src.deps import get_recommend_agent as deps_get_recommend_agent
 from src.llm import get_llm
