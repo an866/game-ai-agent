@@ -110,6 +110,18 @@ def _render_streaming_chat(prompt: str, history: list[dict]):
         _after_message(sid, "assistant", f"出错了: {exc}")
 
 
+def _submit_prompt(prompt_text: str) -> None:
+    """提交提示词：并入窗口 + 落库 + 立即渲染用户气泡 + 流式回复
+
+    输入框与空态示例按钮共用；草稿清理由调用方（输入路径）负责。
+    """
+    add_chat_session_message("user", prompt_text)
+    _after_message(st.session_state.get("active_session_id"), "user", prompt_text)
+    render_message_list(get_active_messages())      # 立即显示用户消息
+    with st.container():
+        _render_streaming_chat(prompt_text, get_active_messages())
+
+
 def render_chat_panel() -> None:
     """聊天中心：会话列 + 聊天区（X 三列式）"""
     _ensure_session()
@@ -126,12 +138,15 @@ def render_chat_panel() -> None:
             st.markdown("### 你想问什么？")
             examples = ["黑神话悟空现在多少钱？", "推荐几个魂系游戏", "最近有什么游戏新闻？"]
             ex_cols = st.columns(len(examples))
+            clicked = None
             for col, ex in zip(ex_cols, examples):
                 with col:
                     if st.button(ex, key=f"ex_{ex[:4]}", use_container_width=True):
-                        add_chat_session_message("user", ex)
-                        _after_message(st.session_state["active_session_id"], "user", ex)
-                        st.rerun()
+                        clicked = ex
+            if clicked:
+                # 点击直接发送并流式回复（同一 run，不 rerun；
+                # 在示例列外调用以保持聊天空全宽渲染）
+                _submit_prompt(clicked)
         else:
             render_message_list(history)
 
@@ -148,9 +163,4 @@ def render_chat_panel() -> None:
         if prompt:
             if draft:
                 ui_state.set_panel_state("chat", {})
-            add_chat_session_message("user", prompt)
-            _after_message(st.session_state["active_session_id"], "user", prompt)
-            history = get_active_messages()
-            render_message_list(history)   # 立即显示用户消息
-            with st.container():
-                _render_streaming_chat(prompt, history)
+            _submit_prompt(prompt)
