@@ -61,6 +61,18 @@ class TestAppShell:
         assert any("活跃监控" in m.value for m in at.markdown)
         assert any("Dota 2" in m.value for m in at.markdown)
 
+    def test_switch_tab_to_search(self):
+        """search 分支无头渲染不崩（Task 11 接入后新增）
+
+        搜索面板挂载本身不依赖 DB/API：渲染即见标题、输入框与返回按钮；
+        真正搜索需点击按钮（会走 RAWG API），此处仅验证渲染路径。
+        """
+        at = _run_app()
+        at.button(key="tab_search").click().run()
+        assert not at.exception
+        assert any("返回对话" in b.label for b in at.button)
+        assert any("游戏搜索" in m.value for m in at.markdown)
+
     def test_text_input_submit_triggers_reply(self, monkeypatch):
         """输入框键入并回车 → 提交 + 流式回复；last_submitted 哨兵防重复提交"""
         import src.agents.graph as graph_mod

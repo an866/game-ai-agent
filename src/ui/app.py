@@ -46,14 +46,17 @@ if tab == "chat":
 elif tab == "overview":
     from src.ui.panels.overview import render_overview_panel
     render_overview_panel()
+elif tab == "search":
+    from src.ui.panels.search import render_search_panel
+    render_search_panel()
 else:
     # 工具面板路由（后续任务逐个接入真实渲染）
     route = {
-        "recommend": None, "price": None, "news": None, "search": None,
+        "recommend": None, "price": None, "news": None,
     }
     render = route[tab]
     if render is None:
         st.title(tab)
-        st.info(f"面板 {tab}（Task 11-14 填充）")
+        st.info(f"面板 {tab}（Task 12-14 填充）")
     else:
         render()
