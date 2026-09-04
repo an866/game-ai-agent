@@ -9,6 +9,7 @@ from config.settings import get_settings
 from src.agents.memory import build_profile_text
 from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool, RAWGGameDetailTool
 from src.deps import get_recommend_agent as deps_get_recommend_agent
+from src.llm import get_llm
 from src.tools.web_search import WebSearchTool
 
 settings = get_settings()
@@ -17,13 +18,7 @@ prompts = get_agents_config()
 
 
 def get_recommend_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.llm_model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0.7,
-        streaming=True,
-    )
+    return get_llm("recommend")
 
 
 def _create_recommend_agent():

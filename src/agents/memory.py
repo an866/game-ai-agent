@@ -120,15 +120,10 @@ class ConversationMemory:
     # ── LLM 摘要 ──────────────────────────────────────────
 
     def _get_compress_llm(self) -> ChatOpenAI:
-        """懒加载压缩用的 LLM 实例。"""
+        """LLM 实例（由 llm 工厂按角色缓存）"""
+        from src.llm import get_llm
         if self._compress_llm is None:
-            self._compress_llm = ChatOpenAI(
-                model=settings.llm_model,
-                api_key=settings.openai_api_key,
-                base_url=settings.openai_base_url,
-                temperature=0.3,
-                max_tokens=200,
-            )
+            self._compress_llm = get_llm("compress", max_tokens=200)
         return self._compress_llm
 
     async def compress(

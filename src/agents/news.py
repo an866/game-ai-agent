@@ -4,6 +4,7 @@ from config.loader import get_agents_config
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from src.llm import get_llm
 
 from config.settings import get_settings
 from src.tools.steam_api import SteamNewsTool, SteamSearchTool
@@ -17,12 +18,7 @@ prompts = get_agents_config()
 
 
 def get_news_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.llm_model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0.3,
-    )
+    return get_llm("news")
 
 
 async def run_news(state: dict) -> dict:

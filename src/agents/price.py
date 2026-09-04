@@ -3,6 +3,7 @@
 from config.loader import get_agents_config
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
+from src.llm import get_llm
 from langchain_core.messages import HumanMessage
 
 from config.settings import get_settings
@@ -15,12 +16,7 @@ prompts = get_agents_config()
 
 
 def get_price_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.llm_model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0.3,
-    )
+    return get_llm("price")
 
 
 def build_price_agent():

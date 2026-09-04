@@ -1,0 +1,69 @@
+"""src.llm 工厂测试 —— 角色温度表、单例、覆盖参数"""
+
+import pytest
+
+from src.llm import ROLE_TEMPERATURES, ROLE_STREAMING, clear_llm_cache, get_llm
+from config.settings import settings_override
+
+
+@pytest.fixture(autouse=True)
+def _clean():
+    # openai SDK 在 api_key 为空时构造 client 会抛 Missing credentials
+    clear_llm_cache()
+    with settings_override(openai_api_key="test-key"):
+        yield
+    clear_llm_cache()
+
+
+class TestRoles:
+    def test_temperature_table_complete(self):
+        """8 个角色都应登记温度（与 agents.yaml 删除前一致）"""
+        assert ROLE_TEMPERATURES["router"] == 0.1
+        assert ROLE_TEMPERATURES["query"] == 0.3
+        assert ROLE_TEMPERATURES["price"] == 0.3
+        assert ROLE_TEMPERATURES["recommend"] == 0.7
+        assert ROLE_TEMPERATURES["news"] == 0.3
+        assert ROLE_TEMPERATURES["general"] == 0.5
+        assert ROLE_TEMPERATURES["compress"] == 0.3
+        assert ROLE_TEMPERATURES["profile_extract"] == 0.0
+
+    def test_streaming_only_general_and_recommend(self):
+        assert ROLE_STREAMING.get("general") is True
+        assert ROLE_STREAMING.get("recommend") is True
+        assert ROLE_STREAMING.get("query", False) is False
+
+    def test_role_defaults_applied(self):
+        llm = get_llm("query")
+        assert llm.temperature == 0.3
+        assert llm.streaming is False
+
+    def test_explicit_overrides(self):
+        llm = get_llm("query", temperature=0.7, streaming=True)
+        assert llm.temperature == 0.7
+        assert llm.streaming is True
+
+    def test_compress_max_tokens(self):
+        llm = get_llm("compress", max_tokens=200)
+        assert llm.max_tokens == 200
+
+
+class TestCaching:
+    def test_same_params_same_instance(self):
+        assert get_llm("router") is get_llm("router")
+
+    def test_different_role_different_instance(self):
+        assert get_llm("router") is not get_llm("query")
+
+    def test_clear_rebuilds(self):
+        first = get_llm("router")
+        clear_llm_cache()
+        assert get_llm("router") is not first
+
+    def test_settings_change_invalidates(self):
+        """settings 变更后应拿到新配置的 LLM（key 含 api_key/model）"""
+        llm1 = get_llm("router")
+        with settings_override(openai_base_url="http://localhost:11434/v1"):
+            clear_llm_cache()
+            llm2 = get_llm("router")
+        assert llm2 is not llm1
+        assert "localhost" in llm2.openai_api_base

@@ -78,13 +78,8 @@ async def news_node(state: GameAgentState) -> dict:
 
 def _create_general_agent():
     """构建通用对话 Agent (ReAct + WebSearch) —— 实例由 deps 缓存"""
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        api_key=settings.openai_api_key,
-        base_url=settings.openai_base_url,
-        temperature=0.5,
-        streaming=True,
-    )
+    from src.llm import get_llm
+    llm = get_llm("general")
     tools = [WebSearchTool()]
     system_prompt = prompts["general"]["system_prompt"]
     agent = create_react_agent(model=llm, tools=tools, prompt=system_prompt)
