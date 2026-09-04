@@ -125,7 +125,7 @@ def _submit_prompt(prompt_text: str) -> None:
 
 
 def render_chat_panel() -> None:
-    """聊天中心：图标栏(侧栏) + 会话列 + 聊天区（X 三列式）"""
+    """聊天中心：图标栏(侧栏) + 会话列 + 聊天区"""
     _ensure_session()
 
     col_sessions, col_chat = st.columns([1, 4], gap="medium")
@@ -160,11 +160,10 @@ def render_chat_panel() -> None:
             # 胶囊草稿变更 → 写入 widget 初始值（pre-instantiation write）+ 标记为已知值，
             # 本 run 不触发提交；与 last_submitted 相等时跳过，避免回填覆盖用户已输入的文本
             st.session_state["chat_input_v2"] = draft
-            ui_state.update_panel_state("chat", {"last_submitted": draft, "_draft_filled": True})
+            ui_state.update_panel_state("chat", {"last_submitted": draft})
         prompt = st.text_input("输入问题...", key="chat_input_v2",
                                placeholder="输入问题，如：黑神话悟空现在多少钱？")
         if prompt and prompt != ui_state.get_panel_state("chat").get("last_submitted", ""):
             # 用户改动了内容并回车 → 真实提交；同时清空草稿，防止下次 run 回填旧模板
-            ui_state.update_panel_state("chat", {"last_submitted": prompt,
-                                                 "_draft_filled": False, "draft": ""})
+            ui_state.update_panel_state("chat", {"last_submitted": prompt, "draft": ""})
             _submit_prompt(prompt)

@@ -53,13 +53,18 @@ def test_after_message_single_no_compress():
 
 def test_after_message_no_double_append_when_pre_added():
     svc = FakeService()
-    sessions = {"s1": {"messages": [{"role": "u", "content": "老消息"}, {"role": "assistant", "content": "回复"}], "summary": None}, "active": "s1"}
+    # 生产流程：UI 先 add_chat_session_message 再调 _after_message_logic —— 窗口末尾即新消息
+    sessions = {"s1": {"messages": [
+        {"role": "user", "content": "老消息"},
+        {"role": "user", "content": "新消息"},
+    ], "summary": None}, "active": "s1"}
 
     async def scenario():
         await chat_panel._after_message_logic(svc, sessions, "s1", "user", "新消息")
 
     asyncio.run(scenario())
-    assert len(sessions["s1"]["messages"]) == 3  # 不会重复追加
+    assert len(sessions["s1"]["messages"]) == 2  # 幂等：不再追加
+    assert svc.saved[-1] == ("s1", "user", "新消息")
 
 
 def test_after_message_no_append_when_compress_no_pre_add():
