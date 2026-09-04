@@ -1,14 +1,40 @@
-"""工具基类 —— 统一缓存、重试、超时逻辑"""
+"""工具基类 —— 统一缓存、重试、超时、HTTP 客户端"""
 
 import asyncio
 import hashlib
 import json
 from typing import Any
 from abc import ABC, abstractmethod
+import httpx
 from langchain_core.tools import BaseTool
 from loguru import logger
 
 from src.data.redis_client import get_redis
+
+
+GAME_AGENT_UA = "GameAI-Agent/1.0"
+
+_shared_client: httpx.AsyncClient | None = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """获取共享 HTTP 客户端（连接池复用）"""
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = httpx.AsyncClient(
+            headers={"User-Agent": GAME_AGENT_UA},
+            timeout=httpx.Timeout(15.0),
+            follow_redirects=True,
+        )
+    return _shared_client
+
+
+def get_headers(extra: dict | None = None) -> dict:
+    """获取带统一 User-Agent 的请求头"""
+    headers = {"User-Agent": GAME_AGENT_UA}
+    if extra:
+        headers.update(extra)
+    return headers
 
 
 class GameDataTool(BaseTool, ABC):

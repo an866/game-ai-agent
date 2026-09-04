@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     steam_api_key: str = ""
     rawg_api_key: str = ""
     itad_api_key: str = ""
+    tavily_api_key: str = ""
 
     # ---- MySQL ----
     mysql_host: str = "localhost"
