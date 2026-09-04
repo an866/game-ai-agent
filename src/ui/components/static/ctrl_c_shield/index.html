@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <!-- Ctrl+C 拦截盾（无框架自定义组件，iframe 内执行）
+         Streamlit 用 ReactHotkeys 绑定裸键 'c' 触发 Clear cache（焦点不在
+         输入框时 Ctrl+C 也会命中，复制被劫持成"清缓存"弹窗）。
+         本组件在 capture 阶段截停带修饰键的 c，浏览器原生复制不受影响；
+         裸 C（无修饰）仍可触发清缓存（与汉堡菜单等价，保留）。 -->
+    <script>
+      (function () {
+        try {
+          window.parent.postMessage(
+            { type: "streamlit:setComponentReady", apiVersion: 1 },
+            "*"
+          );
+        } catch (e) {}
+        try {
+          window.parent.document.addEventListener(
+            "keydown",
+            function (e) {
+              if (
+                (e.ctrlKey || e.metaKey) &&
+                e.key &&
+                e.key.toLowerCase() === "c"
+              ) {
+                e.stopPropagation();
+              }
+            },
+            true
+          );
+        } catch (e) {
+          /* 跨域 iframe 场景：拦截降级为不生效（仅依赖 Streamlit 原生行为） */
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -17,6 +17,10 @@ init_chat_sessions()
 
 theme.inject_theme(ui_state.get_theme())
 
+# Streamlit 裸键 'c' 清缓存快捷键会劫持 Ctrl+C 复制 —— 组件拦截（见 ctrl_c_shield）
+from src.ui.components.ctrl_c_shield import render_ctrl_c_shield
+render_ctrl_c_shield()
+
 # ── 侧栏：图标栏 ──
 with st.sidebar:
     st.markdown("### 🎮")
