@@ -10,7 +10,7 @@ from src.services.chat_service import ChatService
 from src.ui import ui_state
 from src.ui.session_state import (
     init_chat_sessions, create_chat_session, get_active_messages,
-    add_chat_session_message, switch_session, run_async_safe,
+    add_chat_session_message, run_async_safe,
 )
 from src.ui.chat.message_list import (
     bubble_html, render_message_list, render_streaming_cursor,
@@ -22,11 +22,12 @@ from src.ui.chat.session_list import render_session_list
 
 async def _after_message_logic(mem: ChatService, sessions: dict, sid: str,
                                role: str, content: str) -> None:
-    """消息落库 + 窗口维护 + 压缩判定 + 画像提取（纯逻辑，可注入测试）
+    """消息落库 + 压缩判定 + 画像提取（纯逻辑，可注入测试）
 
-    调用方（UI）会先经 add_chat_session_message 把消息并入窗口；
-    此处仅在未触发压缩且窗口尾部尚无该消息时补并（幂等），
-    保证直接调用本逻辑（如测试）窗口也包含新消息。
+    生产调用方先经 add_chat_session_message 把消息并入窗口，此处不负责并入；
+    仅在未触发压缩且窗口尾部尚无该消息时补并（幂等）。触发压缩时窗口由
+    compress 的结果整体替换——若调用方未预先并入（如直接调用本逻辑），
+    新消息不会出现在压缩后的窗口中（消息已落库，摘要仍会覆盖上下文）。
     """
     await mem.save_message(sid, role, content)
     current_msgs = sessions[sid]["messages"]
@@ -111,19 +112,20 @@ def _render_streaming_chat(prompt: str, history: list[dict]):
 
 
 def _submit_prompt(prompt_text: str) -> None:
-    """提交提示词：并入窗口 + 落库 + 立即渲染用户气泡 + 流式回复
+    """提交一条用户消息：入窗 + 持久化 + 即时气泡 + 流式回复
 
-    输入框与空态示例按钮共用；草稿清理由调用方（输入路径）负责。
+    只渲染新消息气泡——历史气泡已由 render_message_list(history) 渲染，
+    重复渲染会造成双份；草稿清理由调用方（输入路径）负责。
     """
     add_chat_session_message("user", prompt_text)
     _after_message(st.session_state.get("active_session_id"), "user", prompt_text)
-    render_message_list(get_active_messages())      # 立即显示用户消息
+    render_message_list([{"role": "user", "content": prompt_text}])   # 只渲染新消息
     with st.container():
         _render_streaming_chat(prompt_text, get_active_messages())
 
 
 def render_chat_panel() -> None:
-    """聊天中心：会话列 + 聊天区（X 三列式）"""
+    """聊天中心：图标栏(侧栏) + 会话列 + 聊天区（X 三列式）"""
     _ensure_session()
 
     col_sessions, col_chat = st.columns([1, 4], gap="medium")
@@ -150,17 +152,19 @@ def render_chat_panel() -> None:
         else:
             render_message_list(history)
 
-        # 快捷指令 + 输入（快捷指令胶囊写入 draft → 输入框回填；
-        # 提交后无 draft 时重建输入框，模拟 chat_input 提交即清空）
+        # 输入区（V3: last_submitted 哨兵防误提交/防重复提交，永不 pop widget key；
+        # 提交后文本保留在输入框——text_input 无法程序化清空，哨兵保证不会重复发送）
         render_quick_commands()
         draft = ui_state.get_panel_state("chat").get("draft", "")
-        if draft:
+        if draft and draft != ui_state.get_panel_state("chat").get("last_submitted", ""):
+            # 胶囊草稿变更 → 写入 widget 初始值（pre-instantiation write）+ 标记为已知值，
+            # 本 run 不触发提交；与 last_submitted 相等时跳过，避免回填覆盖用户已输入的文本
             st.session_state["chat_input_v2"] = draft
-        else:
-            st.session_state.pop("chat_input_v2", None)
-        prompt = st.text_input("输入问题...", key="chat_input_v2", value=draft,
-                               label_visibility="collapsed", placeholder="输入问题...")
-        if prompt:
-            if draft:
-                ui_state.set_panel_state("chat", {})
+            ui_state.update_panel_state("chat", {"last_submitted": draft, "_draft_filled": True})
+        prompt = st.text_input("输入问题...", key="chat_input_v2",
+                               placeholder="输入问题，如：黑神话悟空现在多少钱？")
+        if prompt and prompt != ui_state.get_panel_state("chat").get("last_submitted", ""):
+            # 用户改动了内容并回车 → 真实提交；同时清空草稿，防止下次 run 回填旧模板
+            ui_state.update_panel_state("chat", {"last_submitted": prompt,
+                                                 "_draft_filled": False, "draft": ""})
             _submit_prompt(prompt)

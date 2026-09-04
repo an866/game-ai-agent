@@ -49,3 +49,27 @@ def test_after_message_single_no_compress():
     asyncio.run(scenario())
     assert len(sessions["s1"]["messages"]) == 2
     assert sessions["s1"]["summary"] is None
+
+
+def test_after_message_no_double_append_when_pre_added():
+    svc = FakeService()
+    sessions = {"s1": {"messages": [{"role": "u", "content": "老消息"}, {"role": "assistant", "content": "回复"}], "summary": None}, "active": "s1"}
+
+    async def scenario():
+        await chat_panel._after_message_logic(svc, sessions, "s1", "user", "新消息")
+
+    asyncio.run(scenario())
+    assert len(sessions["s1"]["messages"]) == 3  # 不会重复追加
+
+
+def test_after_message_no_append_when_compress_no_pre_add():
+    svc = FakeService()
+    sessions = {"s1": {"messages": [{"role": "u", "content": "1"}] * 4, "summary": None}, "active": "s1"}
+
+    async def scenario():
+        await chat_panel._after_message_logic(svc, sessions, "s1", "user", "新消息")
+
+    asyncio.run(scenario())
+    # 压缩路径：窗口 = 原 4 条截断为 2 条（不含"新消息"），消息已落库
+    assert svc.saved[-1] == ("s1", "user", "新消息")
+    assert len(sessions["s1"]["messages"]) == 2
