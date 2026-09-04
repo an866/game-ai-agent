@@ -36,6 +36,7 @@ async def add_watch(game_name: str, target_price: float, session_factory: Callab
             await WatchlistRepository(session).add(
                 game_name=game_name, target_price=target_price
             )
+            await session.commit()
         return True
     except Exception as exc:
         logger.warning(f"添加监控失败 ({game_name}): {exc}")
@@ -47,6 +48,7 @@ async def delete_watch(watchlist_id: int, session_factory: Callable | None = Non
     try:
         async with factory()() as session:
             await WatchlistRepository(session).delete(watchlist_id)
+            await session.commit()
         return True
     except Exception as exc:
         logger.warning(f"删除监控失败 (id={watchlist_id}): {exc}")
@@ -76,7 +78,9 @@ async def mark_all_alerts_read(session_factory: Callable | None = None) -> int:
     factory = session_factory or get_session_factory
     try:
         async with factory()() as session:
-            return await PriceAlertRepository(session).mark_all_read()
+            count = await PriceAlertRepository(session).mark_all_read()
+            await session.commit()
+            return count
     except Exception as exc:
         logger.warning(f"批量已读失败: {exc}")
         return 0

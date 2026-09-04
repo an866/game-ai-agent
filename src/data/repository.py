@@ -1,4 +1,9 @@
-"""数据访问层 —— 封装 MySQL 操作"""
+"""数据访问层 —— 封装 MySQL 操作
+
+事务约定（C12）：Repository 方法不做 commit/flush 之外的事——
+增改删只作用于当前 session，由调用方（service 层）负责 commit/rollback。
+单次操作需补 id 的用 flush 即可（expire_on_commit=False 下已设置的属性保留）。
+"""
 
 from datetime import datetime, timedelta
 from sqlalchemy import select, update, delete, func
@@ -31,8 +36,7 @@ class WatchlistRepository:
             target_price=target_price,
         )
         self.session.add(item)
-        await self.session.commit()
-        await self.session.refresh(item)
+        await self.session.flush()
         return item
 
     async def update_status(self, watchlist_id: int, status: str):
@@ -41,7 +45,6 @@ class WatchlistRepository:
             .where(Watchlist.id == watchlist_id)
             .values(status=status, last_checked_at=datetime.now())
         )
-        await self.session.commit()
 
     async def update_price(self, watchlist_id: int, target_price: float):
         await self.session.execute(
@@ -49,13 +52,11 @@ class WatchlistRepository:
             .where(Watchlist.id == watchlist_id)
             .values(target_price=target_price)
         )
-        await self.session.commit()
 
     async def delete(self, watchlist_id: int):
         await self.session.execute(
             delete(Watchlist).where(Watchlist.id == watchlist_id)
         )
-        await self.session.commit()
 
     async def get_count(self) -> int:
         result = await self.session.execute(
@@ -83,8 +84,7 @@ class PriceAlertRepository:
             store_name=store_name,
         )
         self.session.add(alert)
-        await self.session.commit()
-        await self.session.refresh(alert)
+        await self.session.flush()
         return alert
 
     async def get_unread(self, limit: int = 20) -> list[PriceAlert]:
@@ -102,7 +102,6 @@ class PriceAlertRepository:
             .where(PriceAlert.id == alert_id)
             .values(is_read=True)
         )
-        await self.session.commit()
 
     async def get_count_unread(self) -> int:
         result = await self.session.execute(
@@ -132,7 +131,6 @@ class PriceAlertRepository:
             .where(PriceAlert.is_read == False)
             .values(is_read=True)
         )
-        await self.session.commit()
         return result.rowcount or 0
 
 
@@ -145,7 +143,6 @@ class ChatHistoryRepository:
     async def add(self, session_id: str, role: str, content: str, intent: str | None = None):
         record = ChatHistory(session_id=session_id, role=role, content=content, intent=intent)
         self.session.add(record)
-        await self.session.commit()
 
     async def get_recent(self, session_id: str, limit: int = 50) -> list[ChatHistory]:
         """按时间倒序取指定会话最近 N 条"""
@@ -183,7 +180,6 @@ class UserPreferenceRepository:
             )
         else:
             self.session.add(UserPreference(session_id=session_id, **values))
-        await self.session.commit()
 
     async def get_profile(self, session_id: str) -> dict | None:
         result = await self.session.execute(

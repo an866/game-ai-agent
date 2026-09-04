@@ -12,6 +12,12 @@ class _DummySession:
     async def __aexit__(self, *args):
         return False
 
+    async def commit(self):
+        return None
+
+    async def rollback(self):
+        return None
+
 
 class _DummySessionFactory:
     def __call__(self):

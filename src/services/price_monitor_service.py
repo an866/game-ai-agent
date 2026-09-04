@@ -28,7 +28,6 @@ async def run_price_check(session_factory: Callable | None = None) -> dict:
     async with factory()() as session:
         watchlist_repo = WatchlistRepository(session)
         alert_repo = PriceAlertRepository(session)
-
         active_watches = await watchlist_repo.get_all_active()
         if not active_watches:
             logger.info("价格巡检: 无活跃监控项")
@@ -62,8 +61,11 @@ async def run_price_check(session_factory: Callable | None = None) -> dict:
                     )
 
                 await watchlist_repo.update_status(watch.id, "active")
+                # 单个监控项一个事务：create_alert + update_status 原子提交
+                await session.commit()
 
             except Exception as e:
+                await session.rollback()
                 logger.warning(f"价格巡检失败 [{watch.game_name}]: {e}")
 
         logger.info(f"价格巡检完成: {stats}")

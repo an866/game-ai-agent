@@ -73,6 +73,7 @@ class ChatService:
         try:
             async with self._session_factory()() as db:
                 await ChatHistoryRepository(db).add(session_id, role, content, intent)
+                await db.commit()
             return True
         except Exception as exc:
             logger.warning(f"消息持久化失败 (session={session_id}): {exc}")
@@ -200,6 +201,7 @@ class ChatService:
         try:
             async with self._session_factory()() as db:
                 await UserPreferenceRepository(db).upsert_profile(session_id, profile)
+                await db.commit()
             logger.info(f"[ChatService] 画像已保存 (session={session_id}): {profile}")
             return True
         except Exception as exc:
