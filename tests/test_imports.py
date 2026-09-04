@@ -23,12 +23,13 @@ def _iter_modules(root: Path, package: str):
 
 
 def _module_list() -> list[str]:
-    modules = ["src.main", "scripts.init_db"]
+    modules = ["src.main", "scripts.init_db", "src.deps", "src.llm"]
     for root, package in ((SRC_ROOT / "agents", "src.agents"),
                           (SRC_ROOT / "data", "src.data"),
                           (SRC_ROOT / "mcp", "src.mcp"),
                           (SRC_ROOT / "rag", "src.rag"),
                           (SRC_ROOT / "scheduler", "src.scheduler"),
+                          (SRC_ROOT / "services", "src.services"),
                           (SRC_ROOT / "tools", "src.tools"),
                           (SRC_ROOT / "utils", "src.utils"),
                           (SRC_ROOT / "ui", "src.ui")):
