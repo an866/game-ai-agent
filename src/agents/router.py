@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
+from config.loader import get_agents_config
 from config.settings import get_settings
 
 settings = get_settings()

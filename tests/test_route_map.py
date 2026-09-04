@@ -22,3 +22,9 @@ class TestIntentRoute:
     def test_node_labels_cover_all_route_targets(self):
         """流式进度的 NODE_LABELS 必须覆盖全部路由目标（防漏标签）"""
         assert set(INTENT_ROUTE.values()).issubset(set(NODE_LABELS))
+
+    def test_router_has_agents_config_import(self):
+        """build_router_chain 在函数体内使用 get_agents_config —— 防 C13 重写丢 import 回归"""
+        from src.agents.router import get_agents_config as router_imported
+        from config.loader import get_agents_config
+        assert router_imported is get_agents_config
