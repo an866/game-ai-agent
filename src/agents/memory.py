@@ -24,6 +24,20 @@ COMPRESS_SYSTEM_PROMPT = (
 )
 
 
+def build_profile_text(profile: dict) -> str:
+    """把结构化用户画像拼成提示词片段；无有效字段时返回空串"""
+    parts = []
+    if profile.get("favorite_genres"):
+        parts.append(f"偏好类型: {profile['favorite_genres']}")
+    if profile.get("favorite_games"):
+        parts.append(f"喜欢的游戏: {profile['favorite_games']}")
+    if profile.get("platforms"):
+        parts.append(f"平台: {profile['platforms']}")
+    if profile.get("budget_range"):
+        parts.append(f"预算: {profile['budget_range']}")
+    return "用户画像: " + "；".join(parts) + "。" if parts else ""
+
+
 class ConversationMemory:
     """无状态记忆服务 —— 提供 DB 读写、压缩判定、LLM 摘要、上下文构建。
 

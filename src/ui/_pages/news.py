@@ -4,6 +4,7 @@ import streamlit as st
 from src.ui.session_state import run_async_safe
 from src.ui.components._loading import show_loading
 from src.ui.components._error import show_error
+from src.ui.components.rss_card import render_news_doc, render_rss_article
 
 st.title("游戏新闻")
 
@@ -43,17 +44,7 @@ with tab1:
                 if docs:
                     st.subheader(f"找到 {len(docs)} 条相关新闻")
                     for doc in docs:
-                        meta = doc.metadata
-                        with st.container(border=True):
-                            st.markdown(f"#### {meta.get('title', '无标题')}")
-                            st.caption(
-                                f"来源: {meta.get('source_name', '未知')} | "
-                                f"日期: {meta.get('published_date', '未知')} | "
-                                f"语言: {meta.get('language', '未知')}"
-                            )
-                            st.markdown(doc.page_content[:300] + ("..." if len(doc.page_content) > 300 else ""))
-                            if meta.get("source_url"):
-                                st.link_button("阅读原文", meta["source_url"])
+                        render_news_doc(doc)
                 else:
                     st.info("未找到相关新闻，尝试修改搜索条件")
     elif not news_query:
@@ -80,15 +71,6 @@ with tab2:
         st.info("RSS 新闻源暂不可用，请稍后重试")
     elif articles:
         for article in articles[:15]:
-            with st.container(border=True):
-                st.markdown(f"**{article.get('title', '无标题')}**")
-                st.caption(
-                    f"来源: {article.get('source_name', article.get('source', '未知'))} | "
-                    f"{article.get('published', '未知')}"
-                )
-                if article.get("summary"):
-                    st.markdown(article["summary"][:200])
-                if article.get("link"):
-                    st.link_button("阅读原文", article["link"])
+            render_rss_article(article)
     else:
         st.info("暂无最新资讯")

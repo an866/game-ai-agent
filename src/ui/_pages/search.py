@@ -4,6 +4,7 @@ import streamlit as st
 from src.ui.session_state import run_async_safe
 from src.ui.components._loading import show_loading
 from src.ui.components._error import show_error
+from src.ui.components.game_card import render_game_card
 
 st.title("游戏搜索")
 
@@ -59,45 +60,6 @@ with col2:
     if results:
         st.subheader(f"找到 {len(results)} 个结果")
         for game in results:
-            with st.container(border=True):
-                game_col1, game_col2 = st.columns([1, 3])
-                with game_col1:
-                    if game.get("background_image"):
-                        st.image(game["background_image"], use_container_width=True)
-                with game_col2:
-                    st.markdown(f"### {game['name']}")
-                    if game.get("rating"):
-                        st.markdown(f"评分: **{game['rating']}/5** | Metacritic: {game.get('metacritic', '暂无')}")
-                    if game.get("released"):
-                        st.markdown(f"发售日: {game['released']}")
-                    if game.get("genres"):
-                        st.markdown(f"类型: {', '.join(game['genres'])}")
-                    if game.get("platforms"):
-                        st.markdown(f"平台: {', '.join(game['platforms'][:5])}")
-                    with st.expander(f"查看 {game['name']} 详情"):
-                        try:
-                            from src.tools.rawg import RAWGGameDetailTool
-                            detail_tool = RAWGGameDetailTool()
-                            detail = run_async_safe(detail_tool._arun(game["id"]))
-                            if detail and "error" not in detail:
-                                if detail.get("description"):
-                                    st.markdown(detail["description"])
-                                detail_col1, detail_col2, detail_col3 = st.columns(3)
-                                with detail_col1:
-                                    st.metric("评分", f"{detail.get('rating', '-')}/5")
-                                with detail_col2:
-                                    st.metric("评分人数", detail.get("rating_count", "-"))
-                                with detail_col3:
-                                    st.metric("Metacritic", detail.get("metacritic", "-"))
-                                if detail.get("developers"):
-                                    st.caption(f"开发商: {', '.join(detail['developers'])}")
-                                if detail.get("publishers"):
-                                    st.caption(f"发行商: {', '.join(detail['publishers'])}")
-                                if detail.get("website"):
-                                    st.link_button("官网", detail["website"])
-                            else:
-                                st.info("暂无详细信息")
-                        except Exception:
-                            st.info("详情加载失败")
+            render_game_card(game)
     elif not query:
         st.info("输入游戏名称开始搜索")

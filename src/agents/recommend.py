@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 
 from config.settings import get_settings
+from src.agents.memory import build_profile_text
 from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool, RAWGGameDetailTool
 from src.tools.web_search import WebSearchTool
 
@@ -54,17 +55,9 @@ async def run_recommend(state: dict, profile: dict | None = None) -> dict:
     game_name = state.get("game_name", "")
 
     # ── 注入用户画像 ──
-    if profile:
-        parts = []
-        if profile.get("favorite_genres"): parts.append(f"偏好类型: {profile['favorite_genres']}")
-        if profile.get("favorite_games"): parts.append(f"喜欢的游戏: {profile['favorite_games']}")
-        if profile.get("platforms"): parts.append(f"平台: {profile['platforms']}")
-        if profile.get("budget_range"): parts.append(f"预算: {profile['budget_range']}")
-        if parts:
-            profile_text = "用户画像: " + "；".join(parts) + "。"
-            query = f"{profile_text}\n用户喜欢: {game_name}. {user_input}"
-        else:
-            query = f"用户喜欢: {game_name}. {user_input}"
+    profile_text = build_profile_text(profile or {})
+    if profile_text:
+        query = f"{profile_text}\n用户喜欢: {game_name}. {user_input}"
     else:
         query = f"用户喜欢: {game_name}. {user_input}"
 
