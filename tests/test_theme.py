@@ -1,8 +1,20 @@
 """theme 单元测试 —— 变量表完整性、键一致性、裸 HEX 扫描"""
 
+import io
 import re
+import tokenize
+
 import pytest
 from src.ui import theme
+
+
+def _strip_comments(src: str) -> str:
+    """仅剥离 Python 注释（保留字符串字面量内容，让裸 HEX 可以被扫出）"""
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(src).readline)
+        return "".join(tok.string for tok in tokens if tok.type != tokenize.COMMENT)
+    except tokenize.TokenError:
+        return src
 
 
 class TestThemeVariables:
@@ -41,7 +53,8 @@ class TestNoBareHexInUI:
     """硬性约定：UI 代码禁止裸 HEX（theme.py 本身除外）"""
 
     UI_DIRS = [
-        "src/ui/components", "src/ui/panels", "src/ui/chat", "src/ui/app.py",
+        "src/ui/components", "src/ui/panels", "src/ui/chat",
+        "src/ui/_pages", "src/ui/app.py",
     ]
 
     @pytest.mark.parametrize("path", [
@@ -52,7 +65,7 @@ class TestNoBareHexInUI:
     ])
     def test_no_bare_hex(self, path):
         src = path.read_text(encoding="utf-8")
-        # 允许注释里的 # 与 CSS 注释；去掉注释后再查裸 HEX
-        code = re.sub(r'#.*$', '', src, flags=re.M)
+        # 剥离 Python 注释；字符串字面量/CSS 内的 HEX 仍会被扫出
+        code = _strip_comments(src)
         hits = re.findall(r'#[0-9a-fA-F]{6}', code)
         assert not hits, f"{path} 含裸 HEX: {hits}"

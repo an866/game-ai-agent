@@ -35,19 +35,19 @@ THEME_VARS: dict[str, dict[str, str]] = {
 
 # 覆盖 Streamlit 原生控件的核心样式（全部引用变量）
 _BASE_OVERRIDES = """
-.stApp {{ background: var(--bg); color: var(--text); }}
-[data-testid="stSidebar"] {{ background: var(--panel); border-right: 1px solid var(--border); }}
-h1, h2, h3, h4 {{ color: var(--text); }}
-.stButton > button, .stFormSubmitButton > button {{
+.stApp { background: var(--bg); color: var(--text); }
+[data-testid="stSidebar"] { background: var(--panel); border-right: 1px solid var(--border); }
+h1, h2, h3, h4 { color: var(--text); }
+.stButton > button, .stFormSubmitButton > button {
   background: linear-gradient(135deg, var(--accent1), var(--accent2));
   color: #fff; border: none; border-radius: var(--radius);
-}}
-.stTextInput input, .stTextArea textarea, [data-baseweb="select"] > div {{
+}
+.stTextInput input, .stTextArea textarea, [data-baseweb="select"] > div {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius);
-}}
-.stTextInput input::placeholder {{ color: var(--text-dim); }}
-[data-testid="stDataFrame"] {{ background: var(--panel); }}
-hr {{ border-color: var(--border); }}
+}
+.stTextInput input::placeholder { color: var(--text-dim); }
+[data-testid="stDataFrame"] { background: var(--panel); }
+hr { border-color: var(--border); }
 """
 
 
@@ -55,13 +55,10 @@ def get_theme_css(theme: str) -> str:
     """主题名 → 完整 CSS 字符串（:root 变量 + 覆盖样式）"""
     vars_ = THEME_VARS.get(theme, THEME_VARS[DEFAULT_THEME])
     var_block = ":root {\n" + "\n".join(f"  {k}: {v};" for k, v in vars_.items()) + "\n}"
-    return var_block + "\n" + _BASE_OVERRIDES.format()
+    return var_block + "\n" + _BASE_OVERRIDES + "\n"
 
 
 def inject_theme(theme: str) -> None:
-    """向页面注入主题 CSS（失败静默回退默认，不阻断渲染）"""
-    try:
-        css = get_theme_css(theme if theme in THEME_VARS else DEFAULT_THEME)
-        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-    except Exception:
-        st.markdown(f"<style>{get_theme_css(DEFAULT_THEME)}</style>", unsafe_allow_html=True)
+    """向页面注入主题 CSS（非法主题名回退默认霓虹）"""
+    css = get_theme_css(theme if theme in THEME_VARS else DEFAULT_THEME)
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
