@@ -12,7 +12,7 @@ DEFAULT_THEME = "neon"
 TABS = ("chat", "overview", "recommend", "price", "news", "search")
 THEMES = ("neon", "night", "light")
 
-# 图标栏顺序（D5 决策）：与 PANEL_TITLE 下标一致
+# 图标栏顺序（D5 决策）：💬对话 → 🏠概览 → 🎯推荐 → 💰价格 → 📰新闻 → 🔍搜索
 TAB_ICONS = {"chat": "💬", "overview": "🏠", "recommend": "🎯",
              "price": "💰", "news": "📰", "search": "🔍"}
 
