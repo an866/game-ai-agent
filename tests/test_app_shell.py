@@ -73,6 +73,18 @@ class TestAppShell:
         assert any("返回对话" in b.label for b in at.button)
         assert any("游戏搜索" in m.value for m in at.markdown)
 
+    def test_switch_tab_to_recommend(self):
+        """recommend 分支无头渲染不崩（Task 14 接入后新增）
+
+        无 active_session_id 时跳过画像加载（不碰 DB），推荐按钮点击才触发
+        RAWG API——此处仅验证渲染路径与返回按钮/标题。
+        """
+        at = _run_app()
+        at.button(key="tab_recommend").click().run()
+        assert not at.exception
+        assert any("返回对话" in b.label for b in at.button)
+        assert any("游戏推荐" in m.value for m in at.markdown)
+
     def test_switch_tab_to_news(self, monkeypatch):
         """news 分支无头渲染不崩（Task 12 接入后新增）
 

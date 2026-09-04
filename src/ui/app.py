@@ -55,14 +55,6 @@ elif tab == "news":
 elif tab == "price":
     from src.ui.panels.price_watch import render_price_panel
     render_price_panel()
-else:
-    # 工具面板路由（后续任务逐个接入真实渲染）
-    route = {
-        "recommend": None,
-    }
-    render = route[tab]
-    if render is None:
-        st.title(tab)
-        st.info(f"面板 {tab}（Task 12-14 填充）")
-    else:
-        render()
+elif tab == "recommend":
+    from src.ui.panels.recommend import render_recommend_panel
+    render_recommend_panel()
