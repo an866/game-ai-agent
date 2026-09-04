@@ -7,12 +7,7 @@ from loguru import logger
 
 @contextmanager
 def show_error(fallback_message: str = "操作失败，请稍后重试"):
-    """统一错误处理上下文管理器
-
-    用法:
-        with show_error("搜索失败"):
-            results = fragile_operation()
-    """
+    """统一错误处理上下文管理器"""
     try:
         yield
     except Exception as e:
