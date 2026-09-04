@@ -52,10 +52,13 @@ elif tab == "search":
 elif tab == "news":
     from src.ui.panels.news import render_news_panel
     render_news_panel()
+elif tab == "price":
+    from src.ui.panels.price_watch import render_price_panel
+    render_price_panel()
 else:
     # 工具面板路由（后续任务逐个接入真实渲染）
     route = {
-        "recommend": None, "price": None,
+        "recommend": None,
     }
     render = route[tab]
     if render is None:
