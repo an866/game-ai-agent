@@ -8,9 +8,11 @@ from config.settings import settings_override
 
 @pytest.fixture(autouse=True)
 def _clean():
-    # openai SDK 在 api_key 为空时构造 client 会抛 Missing credentials
+    # 测试不依赖用户 .env：固定 key/model/reasoning ——
+    # 注意 langchain 按模型名前缀(gpt-5/o*系列)自动判定推理模型并强制 temperature=None
     clear_llm_cache()
-    with settings_override(openai_api_key="test-key"):
+    with settings_override(openai_api_key="test-key", llm_reasoning_effort="",
+                           llm_model="gpt-4o-mini"):
         yield
     clear_llm_cache()
 
@@ -45,6 +47,20 @@ class TestRoles:
     def test_compress_max_tokens(self):
         llm = get_llm("compress", max_tokens=200)
         assert llm.max_tokens == 200
+
+    def test_reasoning_effort_passthrough(self):
+        """settings.llm_reasoning_effort 非空时作为显式参数传入"""
+        with settings_override(llm_reasoning_effort="xhigh"):
+            clear_llm_cache()
+            llm = get_llm("query")
+        assert llm.reasoning_effort == "xhigh"
+        # 注意：temperature 是否被强制 None 由模型名决定（gpt-5/o* 前缀），
+        # 与 reasoning_effort 参数无关；此处不对此做断言
+
+    def test_reasoning_effort_empty_no_kwargs(self):
+        """留空时不携带 reasoning_effort（默认行为不变）"""
+        llm = get_llm("query")
+        assert not getattr(llm, "reasoning_effort", None)
 
 
 class TestCaching:

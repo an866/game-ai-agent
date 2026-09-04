@@ -42,6 +42,10 @@ def _build(role: str, temperature: float, streaming: bool,
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
+    if settings.llm_reasoning_effort:
+        # 推理模型显式参数（langchain-openai 支持；注意启用后其会把
+        # temperature 置 None —— 推理模型语义，温度表仍保留作 fallback）
+        kwargs["reasoning_effort"] = settings.llm_reasoning_effort
     return ChatOpenAI(**kwargs)
 
 

@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
+    # 透传给模型请求的推理强度（low/medium/high 或中转自定义值；空则不带）
+    llm_reasoning_effort: str = ""
     embedding_model: str = "text-embedding-3-small"
 
     # ---- 外部 API Keys ----
