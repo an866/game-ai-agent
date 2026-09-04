@@ -16,7 +16,6 @@ router:
     用户："有没有类似只狼的游戏" → {"intent": "recommend", "game_name": "只狼"}
     用户："这游戏打折了吗"（上文提到黑神话） → {"intent": "price_check", "game_name": "黑神话"}
     用户："你好" → {"intent": "general", "game_name": null}
-  temperature: 0.1
 
 query:
   system_prompt: |
@@ -46,7 +45,6 @@ query:
     - 如果中英文和联网搜索都搜不到，直接告诉用户"未找到该游戏信息"，不要编造数据
     - 如果搜索到多个结果，选择最匹配用户描述的那个
     - 不要重复调用同一个工具获取已经拿到过的信息
-  temperature: 0.3
 
 recommend:
   system_prompt: |
@@ -65,7 +63,6 @@ recommend:
     - 用中文回复，推荐要有说服力
     - 只推荐工具返回数据中真实存在的游戏，严禁编造游戏名称
     - 如果工具返回的推荐列表为空，如实告知用户"暂无相关推荐"
-  temperature: 0.7
 
 price:
   system_prompt: |
@@ -88,7 +85,6 @@ price:
     - 比价时优先展示人民币价格
     - CheapShark 返回的价格单位是美元，换算提示用户
     - 加入监控前不需要先询价，但如果用户问了价格，先展示价格再问要不要加监控
-  temperature: 0.3
 
 news:
   system_prompt: |
@@ -105,7 +101,6 @@ news:
     - 每条新闻必须标注来源（RSS 源名称 / Steam / HoYoLAB 等）
     - 如果 RAG 检索结果和 API 结果有重复，合并去重
     - 没有相关新闻时，如实告之"暂无相关新闻"
-  temperature: 0.3
 
 general:
   system_prompt: |
@@ -121,4 +116,3 @@ general:
 
     如果用户的问题超出游戏范围，礼貌地引导回游戏相关话题。
     用中文回复，语气轻松友好。
-  temperature: 0.5

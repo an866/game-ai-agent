@@ -47,20 +47,3 @@ class CheapSharkDealsTool(GameDataTool):
                 }
                 for d in deals
             ]
-
-
-class CheapSharkStoresTool(GameDataTool):
-    """获取 CheapShark 商店列表"""
-    name: str = "cheapshark_get_stores"
-    description: str = "获取 CheapShark 支持的所有商店列表。无参数。"
-    cache_ttl: int = 86400
-
-    async def _arun(self) -> Any:
-        return await self._cached_call(self._get_stores)
-
-    async def _get_stores(self) -> list[dict]:
-        url = "https://www.cheapshark.com/api/1.0/stores"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=self.request_timeout)
-            resp.raise_for_status()
-            return resp.json()

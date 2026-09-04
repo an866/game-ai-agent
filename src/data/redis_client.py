@@ -21,10 +21,5 @@ async def get_redis() -> redis.Redis:
         )
     return _redis_pool
 
-
-async def close_redis():
-    """关闭 Redis 连接"""
-    global _redis_pool
-    if _redis_pool is not None:
-        await _redis_pool.close()
-        _redis_pool = None
+# 注意：_redis_pool 不做显式关闭——进程生命周期内复用；
+# 测试环境如需隔离请通过 monkeypatch 替换 get_redis。

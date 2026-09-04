@@ -20,15 +20,6 @@ async_session_factory = async_sessionmaker(
 )
 
 
-async def get_db() -> AsyncSession:
-    """FastAPI 风格的依赖注入获取数据库会话"""
-    async with async_session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-
-
 async def create_tables():
     """创建所有表（从 ORM 模型）"""
     from src.data.models import Base

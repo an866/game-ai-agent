@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 from langchain_core.documents import Document
-from langchain_core.runnables import RunnableLambda
 from src.rag.store import get_retriever, get_vector_store
 
 
@@ -28,9 +27,6 @@ async def search_news(
     days_filter: int | None = None,
 ) -> list[Document]:
     """搜索新闻 —— MMR 语义检索 + 可选来源/游戏/时间过滤"""
-    from src.rag.store import get_retriever, get_vector_store
-    from datetime import datetime, timedelta
-
     filter_conditions: list[dict] = []
 
     if source_filter:
@@ -56,34 +52,6 @@ async def search_news(
 
     docs = await retriever.ainvoke(query)
     return docs
-
-
-def build_rag_chain(llm):
-    """构建 RAG 链：检索 → 上下文注入 → LLM 生成"""
-    from langchain_core.prompts import ChatPromptTemplate
-    from langchain_core.runnables import RunnablePassthrough
-    from langchain_core.output_parsers import StrOutputParser
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """你是一个游戏资讯专家。根据以下检索到的新闻内容回答用户问题。
-如果新闻内容不足以回答，请如实说明。
-按时间倒序排列，标注每条新闻的来源和日期。
-
-检索到的新闻:
-{context}
-
-用户问题: {question}"""),
-    ])
-
-    retriever = get_retriever(k=5)
-
-    chain = (
-        {"context": retriever | _format_docs, "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
-    return chain
 
 
 def _format_docs(docs: list[Document]) -> str:

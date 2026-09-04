@@ -8,7 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 from config.settings import get_settings
 from src.tools.steam_api import SteamNewsTool, SteamSearchTool
-from src.tools.hoyolab import GenshinNewsTool, GenshinInfoTool, GenshinEventsTool
+from src.tools.hoyolab import GenshinNewsTool, GenshinEventsTool
 from src.tools.rss_feed import RSSFetchAllTool
 from src.rag.retriever import _format_docs
 

@@ -40,41 +40,6 @@ class GenshinNewsTool(GameDataTool):
             ]
 
 
-class GenshinInfoTool(GameDataTool):
-    """获取原神活动/资讯"""
-    name: str = "genshin_get_info"
-    description: str = "获取原神的最新活动和资讯。无参数。"
-    cache_ttl: int = 1800
-
-    async def _arun(self, page_size: int = 10) -> Any:
-        return await self._cached_call(self._get_info, page_size)
-
-    async def _get_info(self, page_size: int = 10) -> list[dict]:
-        url = "https://bbs-api-os.hoyolab.com/community/post/wapi/getNewsList"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                url,
-                params={"gids": 2, "type": 3, "pageSize": page_size},
-                headers={
-                    "User-Agent": "GameAI-Agent/1.0",
-                    "Referer": "https://www.hoyolab.com/",
-                },
-                timeout=self.request_timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            posts = data.get("data", {}).get("list", [])
-            return [
-                {
-                    "title": p["post"]["subject"],
-                    "url": f"https://www.hoyolab.com/article/{p['post']['post_id']}",
-                    "created_at": p["post"]["created_at"],
-                    "summary": p["post"]["content"][:300],
-                }
-                for p in posts
-            ]
-
-
 class GenshinEventsTool(GameDataTool):
     """获取原神活动日历"""
     name: str = "genshin_get_events"

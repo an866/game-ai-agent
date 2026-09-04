@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     # ---- LLM ----
     llm_provider: str = "openai"
     llm_model: str = "gpt-4o-mini"
-    llm_model_complex: str = "gpt-4o"
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     embedding_model: str = "text-embedding-3-small"
@@ -60,14 +59,6 @@ class Settings(BaseSettings):
     def mysql_url(self) -> str:
         return (
             f"mysql+aiomysql://{self.mysql_user}:{self.mysql_password}"
-            f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
-            "?charset=utf8mb4"
-        )
-
-    @property
-    def mysql_sync_url(self) -> str:
-        return (
-            f"mysql+pymysql://{self.mysql_user}:{self.mysql_password}"
             f"@{self.mysql_host}:{self.mysql_port}/{self.mysql_database}"
             "?charset=utf8mb4"
         )
