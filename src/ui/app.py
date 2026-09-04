@@ -1,28 +1,59 @@
-"""Streamlit 多页应用入口"""
+"""UI V2 主壳 —— 图标栏 + 模式分发 + 主题注入
+
+单页面板架构（spec D4）：sidebar 为图标栏，主区按 ui["tab"] 渲染
+聊天三列或工具面板。面板填充顺序见实施计划 Task 10-14。
+"""
 
 import streamlit as st
+
+from src.ui import ui_state, theme
 from src.ui.session_state import init_session_state, init_chat_sessions
 
-st.set_page_config(
-    page_title="游戏 AI 助手",
-    page_icon="🎮",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="游戏 AI 助手", page_icon="🎮",
+                   layout="wide", initial_sidebar_state="expanded")
 
+ui_state.init_ui_state()
 init_session_state()
 init_chat_sessions()
 
-pg = st.navigation(
-    [
-        st.Page("_pages/home.py", title="首页", icon="🏠", url_path="home"),
-        st.Page("_pages/chat.py", title="AI 对话", icon="💬", url_path="chat"),
-        st.Page("_pages/search.py", title="游戏搜索", icon="🔍", url_path="search"),
-        st.Page("_pages/price_watch.py", title="价格监控", icon="💰", url_path="price_watch"),
-        st.Page("_pages/recommend.py", title="游戏推荐", icon="🎯", url_path="recommend"),
-        st.Page("_pages/news.py", title="游戏新闻", icon="📰", url_path="news"),
-    ],
-    position="sidebar",
-    expanded=True,
-)
-pg.run()
+theme.inject_theme(ui_state.get_theme())
+
+# ── 侧栏：图标栏 ──
+with st.sidebar:
+    st.markdown("### 🎮")
+    current = ui_state.get_tab()
+    for tab in ui_state.TABS:
+        icon = ui_state.TAB_ICONS[tab]
+        active = tab == current
+        if st.button(icon, key=f"tab_{tab}", help=tab,
+                     type="primary" if active else "secondary",
+                     use_container_width=True):
+            ui_state.set_tab(tab)
+            st.rerun()
+    st.divider()
+    st.caption("主题")
+    for t in ui_state.THEMES:
+        if st.button(t, key=f"theme_{t}", use_container_width=True):
+            ui_state.set_theme(t)
+            st.rerun()
+
+# ── 主区：模式分发 ──
+tab = ui_state.get_tab()
+
+if tab == "chat":
+    st.title("💬 AI 对话")
+    st.info("聊天中心（Task 9 填充）")
+elif tab == "overview":
+    st.title("🏠 概览")
+    st.info("概览面板（Task 10 填充）")
+else:
+    # 工具面板路由（后续任务逐个接入真实渲染）
+    route = {
+        "recommend": None, "price": None, "news": None, "search": None,
+    }
+    render = route[tab]
+    if render is None:
+        st.title(tab)
+        st.info(f"面板 {tab}（Task 11-14 填充）")
+    else:
+        render()
