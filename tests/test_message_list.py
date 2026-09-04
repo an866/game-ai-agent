@@ -19,6 +19,11 @@ class TestBubbleHtml:
         html = message_list.bubble_html("user", "<script>alert(1)</script>")
         assert "<script>" not in html
 
+    def test_cursor_suffix_not_escaped(self):
+        html = message_list.bubble_html("assistant", "正文", safe_suffix="<b>▌</b>")
+        assert "<b>▌</b>" in html
+        assert "正文" in html
+
 
 class TestStreaming:
     def test_append_token(self):
