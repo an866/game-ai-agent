@@ -26,9 +26,9 @@ class TestAppShell:
 
     def test_default_tab_is_chat(self):
         at = _run_app()
-        # 默认 tab=chat：主区渲染 st.title("💬 AI 对话")
-        # （计划原断言"新对话"会话列表按钮属于 Task 9，尚未落地，改用标题断言）
-        assert any("AI 对话" in t.value for t in at.title)
+        # 默认 tab=chat：主区渲染 chat_panel（会话列 + 聊天区）
+        # （原断言 st.title("💬 AI 对话") 在 Task 9 面板化后移除，改用会话列"➕ 新对话"按钮）
+        assert "➕ 新对话" in [b.label for b in at.button]
 
     def test_switch_tab_to_price(self):
         at = _run_app()

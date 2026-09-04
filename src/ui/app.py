@@ -41,8 +41,8 @@ with st.sidebar:
 tab = ui_state.get_tab()
 
 if tab == "chat":
-    st.title("💬 AI 对话")
-    st.info("聊天中心（Task 9 填充）")
+    from src.ui.chat.chat_panel import render_chat_panel
+    render_chat_panel()
 elif tab == "overview":
     st.title("🏠 概览")
     st.info("概览面板（Task 10 填充）")
