@@ -1,7 +1,7 @@
 """数据访问层 —— 封装 MySQL 操作"""
 
-from datetime import datetime
-from sqlalchemy import select, update, delete
+from datetime import datetime, timedelta
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.data.models import Watchlist, PriceAlert, UserPreference, ChatHistory
 
@@ -59,9 +59,11 @@ class WatchlistRepository:
 
     async def get_count(self) -> int:
         result = await self.session.execute(
-            select(Watchlist).where(Watchlist.status == "active")
+            select(func.count())
+            .select_from(Watchlist)
+            .where(Watchlist.status == "active")
         )
-        return len(list(result.scalars().all()))
+        return result.scalar() or 0
 
 
 class PriceAlertRepository:
@@ -104,9 +106,34 @@ class PriceAlertRepository:
 
     async def get_count_unread(self) -> int:
         result = await self.session.execute(
-            select(PriceAlert).where(PriceAlert.is_read == False)
+            select(func.count())
+            .select_from(PriceAlert)
+            .where(PriceAlert.is_read == False)
         )
-        return len(list(result.scalars().all()))
+        return result.scalar() or 0
+
+    async def has_recent_alert(self, watchlist_id: int, window_hours: int = 48) -> bool:
+        """指定时间窗口内是否已为该监控项触发过告警（防重复）"""
+        cutoff = datetime.now() - timedelta(hours=window_hours)
+        result = await self.session.execute(
+            select(func.count())
+            .select_from(PriceAlert)
+            .where(
+                PriceAlert.watchlist_id == watchlist_id,
+                PriceAlert.triggered_at >= cutoff,
+            )
+        )
+        return (result.scalar() or 0) > 0
+
+    async def mark_all_read(self) -> int:
+        """批量标记全部未读告警为已读，返回受影响行数"""
+        result = await self.session.execute(
+            update(PriceAlert)
+            .where(PriceAlert.is_read == False)
+            .values(is_read=True)
+        )
+        await self.session.commit()
+        return result.rowcount or 0
 
 
 class ChatHistoryRepository:

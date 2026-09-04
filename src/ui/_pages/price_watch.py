@@ -138,11 +138,22 @@ with tab2:
 
 with tab3:
     st.subheader("告警记录")
+
+    async def _mark_all_read():
+        from src.data.repository import PriceAlertRepository
+        async with get_session_factory()() as session:
+            return await PriceAlertRepository(session).mark_all_read()
+
     try:
         col_btn1, col_btn2 = st.columns([1, 5])
         with col_btn1:
             if st.button("刷新", key="refresh_alerts"):
                 _load_alerts.clear()
+        with col_btn2:
+            if st.button("全部已读", key="mark_all_read"):
+                run_async_safe(_mark_all_read())
+                _load_alerts.clear()
+                st.rerun()
 
         alerts = _load_alerts()
         if alerts:
