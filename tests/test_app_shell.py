@@ -37,6 +37,30 @@ class TestAppShell:
         at.button(key="tab_price").click().run()
         assert not at.exception
 
+    def test_switch_tab_to_overview(self, monkeypatch):
+        """overview 分支无头渲染不崩（Task 10 接入后新增）
+
+        数据源打桩：真实 DB/API 在测试环境不可用且带 10s×重试超时，
+        直接跑会拖死 AppTest；打桩仅验证分支渲染路径本身不抛异常。
+        """
+        import src.ui.panels.overview as overview_mod
+
+        monkeypatch.setattr(overview_mod, "_load_stats", lambda: {
+            "watchlist": 3, "alerts": 1, "news_count": 120, "best_deal": "-45%",
+        })
+        monkeypatch.setattr(overview_mod, "_load_hot", lambda: [
+            {"name": "Dota 2", "players": "100"},
+            {"name": "Counter-Strike 2", "players": "-"},
+        ])
+
+        at = _run_app()
+        at.button(key="tab_overview").click().run()
+        assert not at.exception
+        # 顶部返回条 + 统计卡（HTML markdown 内） + 热门在线渲染
+        assert any("返回对话" in b.label for b in at.button)
+        assert any("活跃监控" in m.value for m in at.markdown)
+        assert any("Dota 2" in m.value for m in at.markdown)
+
     def test_text_input_submit_triggers_reply(self, monkeypatch):
         """输入框键入并回车 → 提交 + 流式回复；last_submitted 哨兵防重复提交"""
         import src.agents.graph as graph_mod

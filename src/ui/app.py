@@ -44,8 +44,8 @@ if tab == "chat":
     from src.ui.chat.chat_panel import render_chat_panel
     render_chat_panel()
 elif tab == "overview":
-    st.title("🏠 概览")
-    st.info("概览面板（Task 10 填充）")
+    from src.ui.panels.overview import render_overview_panel
+    render_overview_panel()
 else:
     # 工具面板路由（后续任务逐个接入真实渲染）
     route = {
