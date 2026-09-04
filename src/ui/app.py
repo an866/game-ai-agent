@@ -49,10 +49,13 @@ elif tab == "overview":
 elif tab == "search":
     from src.ui.panels.search import render_search_panel
     render_search_panel()
+elif tab == "news":
+    from src.ui.panels.news import render_news_panel
+    render_news_panel()
 else:
     # 工具面板路由（后续任务逐个接入真实渲染）
     route = {
-        "recommend": None, "price": None, "news": None,
+        "recommend": None, "price": None,
     }
     render = route[tab]
     if render is None:

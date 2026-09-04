@@ -73,6 +73,24 @@ class TestAppShell:
         assert any("返回对话" in b.label for b in at.button)
         assert any("游戏搜索" in m.value for m in at.markdown)
 
+    def test_switch_tab_to_news(self, monkeypatch):
+        """news 分支无头渲染不崩（Task 12 接入后新增）
+
+        RSS Tab 的 _load_rss 真实执行会并发拉取 6 个 RSS 源（网络超时风险），
+        打桩返回空列表：仅验证分支渲染路径与空态本身不抛异常。
+        """
+        import src.ui.panels.news as news_mod
+
+        monkeypatch.setattr(news_mod, "_load_rss", lambda: [])
+
+        at = _run_app()
+        at.button(key="tab_news").click().run()
+        assert not at.exception
+        assert any("返回对话" in b.label for b in at.button)
+        assert any("游戏新闻" in m.value for m in at.markdown)
+        # 空 RSS 列表 → "暂无最新资讯" 空态（info 渲染在 tab2 内）
+        assert any("暂无最新资讯" in i.value for i in at.info)
+
     def test_text_input_submit_triggers_reply(self, monkeypatch):
         """输入框键入并回车 → 提交 + 流式回复；last_submitted 哨兵防重复提交"""
         import src.agents.graph as graph_mod
