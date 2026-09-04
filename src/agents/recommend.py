@@ -8,6 +8,7 @@ from langgraph.prebuilt import create_react_agent
 from config.settings import get_settings
 from src.agents.memory import build_profile_text
 from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool, RAWGGameDetailTool
+from src.deps import get_recommend_agent as deps_get_recommend_agent
 from src.tools.web_search import WebSearchTool
 
 settings = get_settings()
@@ -25,15 +26,8 @@ def get_recommend_llm() -> ChatOpenAI:
     )
 
 
-_recommend_agent = None
-
-
-def build_recommend_agent():
-    """构建游戏推荐 Agent (ReAct) —— 单例缓存"""
-    global _recommend_agent
-    if _recommend_agent is not None:
-        return _recommend_agent
-
+def _create_recommend_agent():
+    """构建游戏推荐 Agent (ReAct) —— 实例由 deps 缓存"""
     llm = get_recommend_llm()
     tools = [
         WebSearchTool(),
@@ -44,8 +38,12 @@ def build_recommend_agent():
     system_prompt = prompts["recommend"]["system_prompt"]
     agent = create_react_agent(model=llm, tools=tools, prompt=system_prompt)
     agent.max_iterations = 5
-    _recommend_agent = agent
     return agent
+
+
+def build_recommend_agent():
+    """游戏推荐 Agent —— 单例由 deps 持有"""
+    return deps_get_recommend_agent()
 
 
 async def run_recommend(state: dict, profile: dict | None = None) -> dict:

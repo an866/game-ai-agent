@@ -11,11 +11,11 @@ st.title("价格监控")
 @st.cache_data(ttl=5, show_spinner=False)
 def _load_watchlist(_cache_buster: int = 0) -> list:
     """加载活跃监控列表"""
-    from src.data.database import async_session_factory
+    from src.deps import get_session_factory
     from src.data.repository import WatchlistRepository
 
     async def _run():
-        async with async_session_factory() as session:
+        async with get_session_factory()() as session:
             items = await WatchlistRepository(session).get_all_active()
             return [
                 {
@@ -33,11 +33,11 @@ def _load_watchlist(_cache_buster: int = 0) -> list:
 @st.cache_data(ttl=5, show_spinner=False)
 def _load_alerts(_cache_buster: int = 0) -> list:
     """加载未读告警"""
-    from src.data.database import async_session_factory
+    from src.deps import get_session_factory
     from src.data.repository import PriceAlertRepository
 
     async def _run():
-        async with async_session_factory() as session:
+        async with get_session_factory()() as session:
             items = await PriceAlertRepository(session).get_unread(20)
             return [
                 {
@@ -63,11 +63,11 @@ with tab1:
         submitted = st.form_submit_button("添加监控", type="primary")
         if submitted and game_name:
             try:
-                from src.data.database import async_session_factory
+                from src.deps import get_session_factory
                 from src.data.repository import WatchlistRepository
 
                 async def add():
-                    async with async_session_factory() as session:
+                    async with get_session_factory()() as session:
                         repo = WatchlistRepository(session)
                         await repo.add(game_name=game_name, target_price=target_price)
 
@@ -80,11 +80,11 @@ with tab1:
 with tab2:
     st.subheader("当前监控")
     try:
-        from src.data.database import async_session_factory
+        from src.deps import get_session_factory
         from src.data.repository import WatchlistRepository
 
         async def delete_item(watchlist_id: int):
-            async with async_session_factory() as session:
+            async with get_session_factory()() as session:
                 repo = WatchlistRepository(session)
                 await repo.delete(watchlist_id)
 

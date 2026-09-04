@@ -1,6 +1,10 @@
 """项目配置中心 —— Pydantic Settings 管理所有环境变量和路径"""
 
+import os
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -72,3 +76,34 @@ def get_settings() -> Settings:
     if _settings is None:
         _settings = Settings()
     return _settings
+
+
+def reset_settings() -> None:
+    """测试/环境变更后重建配置单例"""
+    global _settings
+    _settings = None
+
+
+from contextlib import contextmanager
+from typing import Iterator
+
+
+@contextmanager
+def settings_override(**kwargs) -> Iterator[None]:
+    """临时覆盖配置字段；with 退出后还原（测试用）。
+
+    用法: with settings_override(openai_api_key="test-key"): ...
+    """
+    saved = {k: os.environ.get(k.upper()) for k in kwargs}
+    for k, v in kwargs.items():
+        os.environ[k.upper()] = str(v)
+    reset_settings()
+    try:
+        yield
+    finally:
+        for k, old in saved.items():
+            if old is None:
+                os.environ.pop(k.upper(), None)
+            else:
+                os.environ[k.upper()] = old
+        reset_settings()

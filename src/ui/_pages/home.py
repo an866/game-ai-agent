@@ -2,7 +2,7 @@
 
 import streamlit as st
 from src.ui.session_state import run_async_safe
-from src.data.database import async_session_factory
+from src.deps import get_session_factory
 from src.data.repository import WatchlistRepository, PriceAlertRepository
 
 
@@ -10,7 +10,7 @@ from src.data.repository import WatchlistRepository, PriceAlertRepository
 def load_stats(_cache_buster: int = 0) -> dict:
     """加载首页仪表盘统计数据（缓存 120 秒）"""
     async def _fetch():
-        async with async_session_factory() as session:
+        async with get_session_factory()() as session:
             watchlist_count = await WatchlistRepository(session).get_count()
             alert_count = await PriceAlertRepository(session).get_count_unread()
         return {
@@ -21,9 +21,8 @@ def load_stats(_cache_buster: int = 0) -> dict:
     def _chroma_count():
         """获取 ChromaDB 新闻文档总数"""
         try:
-            from src.rag.store import get_vector_store
-            store = get_vector_store()
-            return store._collection.count()
+            from src.rag.store import get_doc_count
+            return get_doc_count()
         except Exception:
             return 0
 

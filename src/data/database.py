@@ -1,34 +1,21 @@
-"""MySQL 数据库连接管理（SQLAlchemy async）"""
+"""MySQL 数据库连接管理（SQLAlchemy async）
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from config.settings import get_settings
+engine / session factory 均由 src.deps 惰性持有，
+业务代码通过 deps.get_session_factory() 取用（见 src/deps.py 约定）。
+"""
 
-settings = get_settings()
-
-engine = create_async_engine(
-    settings.mysql_url,
-    echo=False,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,
-)
-
-async_session_factory = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+from src.deps import get_engine
 
 
 async def create_tables():
     """创建所有表（从 ORM 模型）"""
     from src.data.models import Base
-    async with engine.begin() as conn:
+    async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def drop_tables():
     """删除所有表"""
     from src.data.models import Base
-    async with engine.begin() as conn:
+    async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

@@ -11,7 +11,7 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
-from src.data.database import async_session_factory
+from src.deps import get_session_factory
 from src.data.models import ChatHistory
 
 settings = get_settings()
@@ -66,7 +66,7 @@ class ConversationMemory:
     ) -> bool:
         """持久化一条消息到 MySQL。DB 不可用时返回 False 并 log warning。"""
         try:
-            async with async_session_factory() as db:
+            async with get_session_factory()() as db:
                 msg = ChatHistory(
                     session_id=session_id,
                     role=role,
@@ -85,7 +85,7 @@ class ConversationMemory:
     ) -> list[dict]:
         """从 MySQL 加载指定会话的最近 N 条消息。DB 不可用时返回空列表。"""
         try:
-            async with async_session_factory() as db:
+            async with get_session_factory()() as db:
                 stmt = (
                     select(ChatHistory)
                     .where(ChatHistory.session_id == session_id)
@@ -218,7 +218,7 @@ class ConversationMemory:
         if not profile:
             return False
         try:
-            async with async_session_factory() as db:
+            async with get_session_factory()() as db:
                 from src.data.models import UserPreference
                 from sqlalchemy import update
 
@@ -256,7 +256,7 @@ class ConversationMemory:
     async def load_profile(self, session_id: str) -> dict | None:
         """从 user_preferences 读取最新画像"""
         try:
-            async with async_session_factory() as db:
+            async with get_session_factory()() as db:
                 from src.data.models import UserPreference
 
                 result = await db.execute(

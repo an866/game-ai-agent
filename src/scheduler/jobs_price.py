@@ -1,7 +1,7 @@
 """价格巡检定时任务"""
 
 from loguru import logger
-from src.data.database import async_session_factory
+from src.deps import get_session_factory
 from src.data.repository import WatchlistRepository, PriceAlertRepository
 from src.tools.cheapshark import CheapSharkDealsTool
 
@@ -10,7 +10,7 @@ async def check_watchlist_prices():
     """遍历所有活跃监控项，检查是否到达目标价"""
     cheapshark = CheapSharkDealsTool()
 
-    async with async_session_factory() as session:
+    async with get_session_factory()() as session:
         watchlist_repo = WatchlistRepository(session)
         alert_repo = PriceAlertRepository(session)
 

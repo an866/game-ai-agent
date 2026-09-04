@@ -11,6 +11,7 @@ from langchain_openai import ChatOpenAI
 from loguru import logger
 
 from src.tools.web_search import WebSearchTool
+from src.deps import get_graph as deps_get_graph, get_general_agent as deps_get_general_agent
 
 from config.settings import get_settings
 
@@ -75,15 +76,8 @@ async def news_node(state: GameAgentState) -> dict:
     return await run_news(state)
 
 
-_general_agent = None
-
-
-def build_general_agent():
-    """构建通用对话 Agent (ReAct + WebSearch) —— 单例缓存"""
-    global _general_agent
-    if _general_agent is not None:
-        return _general_agent
-
+def _create_general_agent():
+    """构建通用对话 Agent (ReAct + WebSearch) —— 实例由 deps 缓存"""
     llm = ChatOpenAI(
         model=settings.llm_model,
         api_key=settings.openai_api_key,
@@ -95,8 +89,12 @@ def build_general_agent():
     system_prompt = prompts["general"]["system_prompt"]
     agent = create_react_agent(model=llm, tools=tools, prompt=system_prompt)
     agent.max_iterations = 3
-    _general_agent = agent
     return agent
+
+
+def build_general_agent():
+    """通用对话 Agent —— 单例由 deps 持有"""
+    return deps_get_general_agent()
 
 
 async def general_chat_node(state: GameAgentState) -> dict:
@@ -182,15 +180,9 @@ def build_graph() -> StateGraph:
     return workflow.compile()
 
 
-# 全局编译实例
-_graph = None
-
-
 def get_graph():
-    global _graph
-    if _graph is None:
-        _graph = build_graph()
-    return _graph
+    """编译后的 LangGraph —— 单例由 deps 持有"""
+    return deps_get_graph()
 
 
 def _build_messages(
