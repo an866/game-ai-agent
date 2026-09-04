@@ -1,26 +1,16 @@
 """Streamlit 跨页面会话状态管理"""
 
-import asyncio
-import concurrent.futures
 import streamlit as st
+from src.utils.async_utils import run_coro_sync
 
 
 def run_async_safe(coro):
     """在 Streamlit 的同步上下文中安全运行 async 协程。
 
-    在独立线程中创建新事件循环执行，不调用 loop.close()
-    以避免触发 SQLAlchemy 连接池清理时的事件循环已关闭错误。
-    事件循环在进程退出时由 OS 回收。
+    实现见 src/utils/async_utils.run_coro_sync —— 单例线程池 +
+    每次新事件循环且不 close（避免 SQLAlchemy 池清理崩溃）。
     """
-    def _run():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
-        # NOTE: 不调用 loop.close() — SQLAlchemy 异步引擎在析构时
-        # 会尝试清理连接池，需要事件循环仍然存活。
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(_run).result()
+    return run_coro_sync(lambda: coro)
 
 
 def init_session_state():

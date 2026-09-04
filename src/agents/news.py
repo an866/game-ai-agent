@@ -11,7 +11,7 @@ from config.settings import get_settings
 from src.tools.steam_api import SteamNewsTool, SteamSearchTool
 from src.tools.hoyolab import GenshinNewsTool, GenshinEventsTool
 from src.tools.rss_feed import RSSFetchAllTool
-from src.rag.retriever import _format_docs
+from src.rag.retriever import _format_docs, search_news
 
 settings = get_settings()
 
@@ -24,18 +24,17 @@ def get_news_llm() -> ChatOpenAI:
 
 async def run_news(state: dict) -> dict:
     """新闻聚合 —— 多源检索 + LLM 摘要"""
-    from src.rag.store import get_retriever
+    
 
     messages = state.get("messages", [])
     user_input = messages[-1].content if messages else ""
     game_name = state.get("game_name", "")
 
     # 1. 向量检索
-    retriever = get_retriever(k=5)
     if game_name:
-        rag_docs = await retriever.ainvoke(f"{game_name} {user_input}")
+        rag_docs = await search_news(f"{game_name} {user_input}", k=5)
     else:
-        rag_docs = await retriever.ainvoke(user_input)
+        rag_docs = await search_news(user_input, k=5)
 
     # 2. 特定数据源查询（并行）
     results = {}

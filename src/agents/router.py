@@ -36,12 +36,12 @@ def build_router_chain():
 
     system_prompt = prompts["router"]["system_prompt"]
 
-    def route(state: dict) -> dict:
-        """路由函数 —— 接收 state，返回更新"""
+    async def route(state: dict) -> dict:
+        """路由函数 —— 接收 state，返回更新（async：避免阻塞事件循环）"""
         messages = state.get("messages", [])
         user_msg = messages[-1].content if messages else ""
 
-        result: RouterDecision = structured_llm.invoke([
+        result: RouterDecision = await structured_llm.ainvoke([
             ("system", system_prompt),
             ("human", user_msg),
         ])
@@ -49,6 +49,7 @@ def build_router_chain():
         return {
             "intent": result.intent,
             "game_name": result.game_name or state.get("game_name", ""),
+            "reasoning": result.reasoning,
         }
 
     return route

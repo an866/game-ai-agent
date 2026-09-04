@@ -19,7 +19,8 @@ class RSSFetchTool(GameDataTool):
         return await self._cached_call(self._fetch, url, limit)
 
     async def _fetch(self, url: str, limit: int = 10) -> list[dict]:
-        feed = feedparser.parse(url)
+        from src.utils.async_utils import run_sync_in_loop
+        feed = await run_sync_in_loop(feedparser.parse, url)
         entries = feed.entries[:limit]
         return [
             {

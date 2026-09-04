@@ -47,7 +47,9 @@ class GameDataTool(BaseTool, ABC):
     request_timeout: int = 10
 
     def _run(self, *args: Any, **kwargs: Any) -> Any:
-        return asyncio.run(self._arun(*args, **kwargs))
+        # 同步工具接口：在线程池新循环执行（不 close loop，见 async_utils 方针）
+        from src.utils.async_utils import run_coro_sync
+        return run_coro_sync(lambda: self._arun(*args, **kwargs))
 
     async def _arun(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError

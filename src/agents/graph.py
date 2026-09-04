@@ -46,7 +46,7 @@ async def router_node(state: GameAgentState) -> dict:
     from src.agents.router import build_router_chain
 
     route_fn = build_router_chain()
-    result = route_fn(state)
+    result = await route_fn(state)
 
     logger.info(f"路由: intent={result['intent']}, game={result.get('game_name', 'N/A')}, reason={result.get('reasoning', 'N/A')}")
     return result
@@ -119,17 +119,20 @@ async def aggregator_node(state: GameAgentState) -> dict:
 
 # ===== 路由函数 =====
 
+# 意图 → 节点 的唯一映射（route_by_intent 与图的条件边共用，勿分别维护）
+INTENT_ROUTE: dict[str, str] = {
+    "game_query": "query",
+    "price_check": "price",
+    "recommend": "recommend",
+    "news": "news",
+    "general": "general_chat",
+}
+
+
 def route_by_intent(state: GameAgentState) -> str:
     """根据意图分发到对应的专业 Agent"""
     intent = state.get("intent", "general")
-    route_map = {
-        "game_query": "query",
-        "price_check": "price",
-        "recommend": "recommend",
-        "news": "news",
-        "general": "general_chat",
-    }
-    target = route_map.get(intent, "general_chat")
+    target = INTENT_ROUTE.get(intent, "general_chat")
     logger.info(f"分发: {intent} → {target}")
     return target
 
@@ -155,13 +158,7 @@ def build_graph() -> StateGraph:
     workflow.add_conditional_edges(
         "router",
         route_by_intent,
-        {
-            "query": "query",
-            "price": "price",
-            "recommend": "recommend",
-            "news": "news",
-            "general_chat": "general_chat",
-        },
+        {target: target for target in INTENT_ROUTE.values()},
     )
 
     workflow.add_edge("query", "aggregator")
