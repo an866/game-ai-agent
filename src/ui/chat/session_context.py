@@ -20,7 +20,7 @@ _CTX_JS = r"""
     if (doc.getElementById("ds-ctx-menu")) return doc.getElementById("ds-ctx-menu");
     var menu = doc.createElement("div");
     menu.id = "ds-ctx-menu";
-    menu.style.cssText = "display:none;position:fixed;z-index:2147483000;min-width:172px;padding:6px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:13px;color:#111;";
+    menu.style.cssText = "display:none;position:fixed;z-index:2147483000;min-width:172px;padding:6px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:13px;color:var(--text);";
     [
       { act: "rename", label: "重命名", icon: "✏️" },
       { act: "pin", label: "置顶", icon: "📌" },
@@ -32,8 +32,8 @@ _CTX_JS = r"""
       b.type = "button";
       b.dataset.act = it.act;
       b.textContent = it.icon + "  " + it.label;
-      b.style.cssText = "display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;color:" + (it.danger ? "#dc2626" : "#111");
-      b.addEventListener("mouseenter", function () { b.style.background = "#f3f4f6"; });
+      b.style.cssText = "display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-radius:8px;background:transparent;cursor:pointer;color:" + (it.danger ? "var(--danger)" : "var(--text)");
+      b.addEventListener("mouseenter", function () { b.style.background = "var(--panel-2)"; });
       b.addEventListener("mouseleave", function () { b.style.background = "transparent"; });
       b.addEventListener("click", function (e) {
         e.preventDefault();
@@ -194,7 +194,7 @@ def render_ctx_menu_runtime() -> None:
     if st.session_state.get(key):
         return
     st.markdown(
-        "<style>#ds-ctx-menu button:focus{outline:1px solid var(--accent1,#3a6ff0)}"
+        "<style>#ds-ctx-menu button:focus{outline:1px solid var(--accent1)}"
         ".ds-sess-col [data-sess-id]{display:none;height:0;overflow:hidden}</style>",
         unsafe_allow_html=True,
     )
