@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <html>
   <body>
-    <!-- Ctrl+C 拦截盾（无框架自定义组件，iframe 内执行）
-         Streamlit 用 ReactHotkeys 绑定裸键 'c' 触发 Clear cache（焦点不在
-         输入框时 Ctrl+C 也会命中，复制被劫持成"清缓存"弹窗）。
-         本组件在 capture 阶段截停带修饰键的 c，浏览器原生复制不受影响；
-         裸 C（无修饰）仍可触发清缓存（与汉堡菜单等价，保留）。 -->
+    <!-- Ctrl+C 拦截盾
+         Streamlit ReactHotkeys 把裸键 'c' 绑到 Clear cache，焦点不在输入框时
+         Ctrl+C 复制也会弹窗。iframe 跨域时 window.parent.document 不可写，
+         故多层兜底：parent / top / 同源 window 均尝试；capture + stopImmediatePropagation。 -->
     <script>
       (function () {
-        // 组件就绪协议：load 前主动发 + load 后再发一次（防首载竞态）
         function announceReady() {
           try {
             window.parent.postMessage(
@@ -20,24 +18,55 @@
         announceReady();
         window.addEventListener("load", announceReady);
 
-        // 拦截挂载 + 诊断标记（同源场景可用 parent 页面检查 __shieldActive）
-        try {
-          window.parent.document.addEventListener(
-            "keydown",
-            function (e) {
-              if (
-                (e.ctrlKey || e.metaKey) &&
-                e.key &&
-                e.key.toLowerCase() === "c"
-              ) {
-                e.stopPropagation();
-              }
-            },
-            true
-          );
-          window.parent.__shieldActive = true;
-        } catch (e) {
-          /* 跨域 iframe 场景：拦截降级为不生效（仅依赖 Streamlit 原生行为） */
+        function isCopyShortcut(e) {
+          if (!(e.ctrlKey || e.metaKey)) return false;
+          if (e.altKey) return false;
+          var k = (e.key || "").toLowerCase();
+          // c = 复制；x = 剪切（同样可能被裸键快捷键误伤）
+          return k === "c" || k === "x";
+        }
+
+        function onKey(e) {
+          if (!isCopyShortcut(e)) return;
+          // 阻断 Streamlit hotkeys；保留系统剪贴板（勿调 preventDefault）
+          e.stopImmediatePropagation();
+        }
+
+        function bind(doc) {
+          if (!doc || doc.__ctrlCShieldBound) return false;
+          try {
+            doc.addEventListener("keydown", onKey, true);
+            doc.addEventListener("keypress", onKey, true);
+            doc.__ctrlCShieldBound = true;
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function tryBind() {
+          var ok = false;
+          try {
+            if (bind(window.parent.document)) ok = true;
+          } catch (e) {}
+          try {
+            if (window.top && window.top !== window.parent) {
+              if (bind(window.top.document)) ok = true;
+            }
+          } catch (e) {}
+          if (ok) {
+            try { window.parent.__shieldActive = true; } catch (e) {}
+          }
+          return ok;
+        }
+
+        // 首载 + 延迟重试（组件 iframe 可能晚于 Streamlit 主文档）
+        if (!tryBind()) {
+          var n = 0;
+          var t = setInterval(function () {
+            n++;
+            if (tryBind() || n > 20) clearInterval(t);
+          }, 250);
         }
       })();
     </script>
