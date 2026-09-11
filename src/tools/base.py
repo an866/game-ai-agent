@@ -37,6 +37,20 @@ def get_headers(extra: dict | None = None) -> dict:
     return headers
 
 
+def coerce_arg(primary: Any, fallback: Any = None) -> str:
+    """从命名参数或模型误传的 args 列表中取第一个值。
+
+    ReAct LLM 偶发输出 {"args": ["游戏名"]} 而非 {"title": "..."}。
+    """
+    if primary not in (None, ""):
+        return str(primary)
+    if isinstance(fallback, (list, tuple)) and fallback:
+        return str(fallback[0])
+    if isinstance(fallback, str) and fallback:
+        return fallback
+    return ""
+
+
 class GameDataTool(BaseTool, ABC):
     """所有游戏数据工具的基类，提供缓存 + 重试能力"""
 
@@ -100,3 +114,36 @@ class GameDataTool(BaseTool, ABC):
                 await asyncio.sleep(2 ** attempt)
 
         raise last_error
+
+
+def soft_wrap_tool(tool: BaseTool) -> BaseTool:
+    """包装工具：失败不抛异常，返回结构化错误供 ReAct 继续。
+
+    create_agent 的 ToolNode 默认会把工具异常原样上抛，导致
+    Steam/RAWG 的 HTTPStatusError 打断整轮回复（用户只看到
+    「服务暂时不可用」）。软失败后模型可换源或基于已有结果作答。
+    """
+    if getattr(tool, "_soft_wrapped", False):
+        return tool
+    original_arun = tool._arun
+
+    async def _safe_arun(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return await original_arun(*args, **kwargs)
+        except Exception as exc:
+            logger.warning(f"[soft-fail] {tool.name}: {type(exc).__name__}: {exc}")
+            return {
+                "ok": False,
+                "tool": tool.name,
+                "error": type(exc).__name__,
+                "message": str(exc)[:300],
+                "hint": "该数据源暂时不可用，请换其他工具或基于已有信息回答",
+            }
+
+    tool._arun = _safe_arun  # type: ignore[method-assign]
+    tool._soft_wrapped = True  # type: ignore[attr-defined]
+    return tool
+
+
+def soft_wrap_tools(tools: list) -> list:
+    return [soft_wrap_tool(t) for t in tools]

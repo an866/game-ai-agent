@@ -10,8 +10,12 @@ settings = get_settings()
 
 async def _rawg_get(path: str, params: dict | None = None) -> Any:
     """RAWG API 统一请求：共享客户端 + API key 注入"""
+    key = (settings.rawg_api_key or "").strip()
+    if not key:
+        # 无 key 时立刻失败，避免 401×3 重试把面板拖到不可用
+        raise RuntimeError("RAWG_API_KEY 未配置（.env），RAWG 数据源不可用")
     url = f"https://api.rawg.io/api/{path}"
-    merged = {"key": settings.rawg_api_key, **(params or {})}
+    merged = {"key": key, **(params or {})}
     resp = await get_http_client().get(url, params=merged)
     resp.raise_for_status()
     return resp.json()
@@ -30,6 +34,7 @@ class RAWGGameSearchTool(GameDataTool):
     description: str = "在 RAWG 游戏数据库中搜索游戏，返回游戏 ID、名称、评分、类型等。输入为游戏名称。"
     args_schema: type[BaseModel] = RAWGSearchInput
     cache_ttl: int = 600
+    max_retries: int = 1  # 无 key / 鉴权失败重试无意义
 
     async def _arun(self, query: str, page: int = 1, platforms: str | None = None,
                     genres: str | None = None, **kwargs: Any) -> Any:
@@ -127,6 +132,7 @@ class RAWGGameRecommendationsTool(GameDataTool):
     description: str = "根据 RAWG 游戏 ID 获取相似游戏推荐。输入为 RAWG 游戏 ID（整数）。"
     args_schema: type[BaseModel] = RAWGRecommendInput
     cache_ttl: int = 3600
+    max_retries: int = 1
 
     async def _arun(self, game_id: int, **kwargs: Any) -> Any:
         return await self._cached_call(self._get_suggested, game_id)

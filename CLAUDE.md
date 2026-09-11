@@ -12,7 +12,7 @@
 - `src/deps.py` — 组合根。进程级单例（engine/session_factory/redis/vector_store/graph/agents）只能在这里注册；测试用 `override()` 
 - `src/tools/` — API 工具。继承 `GameDataTool` 自动获得缓存/重试/超时；HTTP 请求必须走 `get_http_client()`
 - `src/data/repository.py` — **不做 commit**（见决策记录）；只暴露增删改查 + flush
-- `src/utils/async_utils.py` — 事件循环方针的唯一实现处（不 close loop）
+- `src/utils/async_utils.py` — 事件循环方针的唯一实现处（进程级**单一**共享 loop，永不 close）
 - `config/settings.py` — pydantic-settings；`config/loader.py` — YAML 单例加载器
 
 ## 铁律（断链高发点）
@@ -22,8 +22,9 @@
    （create_react_agent→create_agent）都靠它拦截，视为 CI 级门槛。
 2. 工具/HTTP 统一 `get_http_client()`；禁止新建 `httpx.AsyncClient()`、禁止硬编码 UA。
 3. `GameDataTool._arun` 优先；scheduler/agent 不要直接调 `_search_*` 私有方法（会绕过缓存/重试）。
-4. 异步桥接只用 `run_async_safe` / `stream_sync` / `run_coro_sync`；**禁止 `asyncio.run` 和 `loop.close()`**
-   （SQLAlchemy 池清理崩溃的历史教训，见 git 6aa30a7 前后）。
+4. 异步桥接只用 `run_async_safe` / `stream_sync` / `run_coro_sync` / `submit_coro`；
+   **禁止 `asyncio.run`、`loop.close()`、每条消息 `new_event_loop`**（共享 Redis/HTTP/SQLAlchemy
+   客户端只能绑一个 loop，多 loop 会导致第二条消息起挂死）。loop 内直接 await，禁止再嵌套 `run_coro_sync`。
 5. 温度、意图路由映射只能改 `src/llm.py` 与 `src/agents/graph.py::INTENT_ROUTE`。
 
 ## 约定

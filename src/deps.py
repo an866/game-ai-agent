@@ -95,6 +95,14 @@ def _register_defaults() -> None:
         from src.agents.graph import _create_general_agent
         return _create_general_agent()
 
+    def _query_agent():
+        from src.agents.query import _create_query_agent
+        return _create_query_agent()
+
+    def _price_agent():
+        from src.agents.price import _create_price_agent
+        return _create_price_agent()
+
     def _recommend_agent():
         from src.agents.recommend import _create_recommend_agent
         return _create_recommend_agent()
@@ -105,6 +113,8 @@ def _register_defaults() -> None:
     _register("vector_store", _vector_store)
     _register("graph", _graph)
     _register("general_agent", _general_agent)
+    _register("query_agent", _query_agent)
+    _register("price_agent", _price_agent)
     _register("recommend_agent", _recommend_agent)
 
 
@@ -138,6 +148,16 @@ def get_graph():
 def get_general_agent():
     _register_defaults()
     return _get("general_agent")
+
+
+def get_query_agent():
+    _register_defaults()
+    return _get("query_agent")
+
+
+def get_price_agent():
+    _register_defaults()
+    return _get("price_agent")
 
 
 def get_recommend_agent():

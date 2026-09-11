@@ -21,6 +21,13 @@ class TestDeps:
         # 同 key 幂等（单例）
         assert deps.get_engine() is deps.get_engine()
 
+    def test_agent_getters_are_cached(self):
+        assert deps.get_query_agent() is deps.get_query_agent()
+        assert deps.get_price_agent() is deps.get_price_agent()
+        assert deps.get_general_agent() is deps.get_general_agent()
+        assert deps.get_recommend_agent() is deps.get_recommend_agent()
+        assert deps.get_query_agent() is not deps.get_price_agent()
+
     def test_override_replaces_instance(self):
         assert deps.get_session_factory() is not None
         fake = object()

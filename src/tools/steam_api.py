@@ -1,19 +1,58 @@
 """Steam API 工具 —— 游戏搜索、详情、新闻、在线人数"""
 
 from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
+
 from config.settings import get_settings
-from src.tools.base import GameDataTool, get_http_client
+from src.tools.base import GameDataTool, coerce_arg, get_http_client
 
 settings = get_settings()
+
+
+class SteamSearchInput(BaseModel):
+    query: str = Field(default="", description="游戏名称关键词")
+    args: Any = Field(default=None, description="兼容模型误用的位置参数列表")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: Any) -> Any:
+        if isinstance(data, dict) and not data.get("query"):
+            args = data.get("args")
+            if isinstance(args, (list, tuple)) and args:
+                data = {**data, "query": str(args[0])}
+            elif isinstance(args, str) and args:
+                data = {**data, "query": args}
+        return data
+
+
+class SteamAppIdInput(BaseModel):
+    appid: int = Field(description="Steam App ID")
+    args: Any = Field(default=None, description="兼容模型误用的位置参数列表")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("appid") in (None, ""):
+            args = data.get("args")
+            if isinstance(args, (list, tuple)) and args:
+                data = {**data, "appid": args[0]}
+            elif args not in (None, ""):
+                data = {**data, "appid": args}
+        return data
 
 
 class SteamSearchTool(GameDataTool):
     """搜索 Steam 商店游戏"""
     name: str = "steam_search_game"
-    description: str = "在 Steam 商店搜索游戏，返回匹配的游戏列表。输入为游戏名称字符串。"
+    description: str = "在 Steam 商店搜索游戏，返回匹配的游戏列表。参数 query 为游戏名称字符串。"
+    args_schema: type[BaseModel] = SteamSearchInput
     cache_ttl: int = 600
 
-    async def _arun(self, query: str) -> Any:
+    async def _arun(self, query: str = "", **kwargs: Any) -> Any:
+        query = coerce_arg(query, kwargs.get("args"))
+        if not query:
+            raise ValueError("缺少参数 query（游戏名称）")
         return await self._cached_call(self._search, query)
 
     async def _search(self, query: str) -> list[dict]:
@@ -38,10 +77,20 @@ class SteamSearchTool(GameDataTool):
 class SteamDetailTool(GameDataTool):
     """获取 Steam 游戏详情"""
     name: str = "steam_get_details"
-    description: str = "获取 Steam 游戏的详细信息（简介、发行日期、开发商、价格等）。输入为 Steam App ID（整数）。"
+    description: str = "获取 Steam 游戏的详细信息（简介、发行日期、开发商、价格等）。参数 appid 为 Steam App ID。"
+    args_schema: type[BaseModel] = SteamAppIdInput
     cache_ttl: int = 1800
 
-    async def _arun(self, appid: int) -> Any:
+    async def _arun(self, appid: int | None = None, **kwargs: Any) -> Any:
+        if appid in (None, ""):
+            args = kwargs.get("args")
+            if isinstance(args, (list, tuple)) and args:
+                appid = args[0]
+            elif args not in (None, ""):
+                appid = args
+        if appid in (None, ""):
+            raise ValueError("缺少参数 appid")
+        appid = int(appid)
         return await self._cached_call(self._get_details, appid)
 
     async def _get_details(self, appid: int) -> dict:
@@ -79,11 +128,20 @@ class SteamDetailTool(GameDataTool):
 class SteamNewsTool(GameDataTool):
     """获取 Steam 游戏新闻"""
     name: str = "steam_get_news"
-    description: str = "获取指定 Steam 游戏的官方新闻。输入为 Steam App ID（整数）。"
+    description: str = "获取指定 Steam 游戏的官方新闻。参数 appid 为 Steam App ID。"
+    args_schema: type[BaseModel] = SteamAppIdInput
     cache_ttl: int = 900
 
-    async def _arun(self, appid: int, count: int = 5) -> Any:
-        return await self._cached_call(self._get_news, appid, count)
+    async def _arun(self, appid: int | None = None, count: int = 5, **kwargs: Any) -> Any:
+        if appid in (None, ""):
+            args = kwargs.get("args")
+            if isinstance(args, (list, tuple)) and args:
+                appid = args[0]
+            elif args not in (None, ""):
+                appid = args
+        if appid in (None, ""):
+            raise ValueError("缺少参数 appid")
+        return await self._cached_call(self._get_news, int(appid), count)
 
     async def _get_news(self, appid: int, count: int = 5) -> list[dict]:
         url = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/"
@@ -108,11 +166,20 @@ class SteamNewsTool(GameDataTool):
 class SteamCurrentPlayersTool(GameDataTool):
     """获取 Steam 游戏当前在线人数"""
     name: str = "steam_current_players"
-    description: str = "获取 Steam 游戏的当前在线玩家数。输入为 Steam App ID（整数）。"
+    description: str = "获取 Steam 游戏的当前在线玩家数。参数 appid 为 Steam App ID。"
+    args_schema: type[BaseModel] = SteamAppIdInput
     cache_ttl: int = 300
 
-    async def _arun(self, appid: int) -> Any:
-        return await self._cached_call(self._get_players, appid)
+    async def _arun(self, appid: int | None = None, **kwargs: Any) -> Any:
+        if appid in (None, ""):
+            args = kwargs.get("args")
+            if isinstance(args, (list, tuple)) and args:
+                appid = args[0]
+            elif args not in (None, ""):
+                appid = args
+        if appid in (None, ""):
+            raise ValueError("缺少参数 appid")
+        return await self._cached_call(self._get_players, int(appid))
 
     async def _get_players(self, appid: int) -> dict:
         url = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"

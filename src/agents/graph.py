@@ -100,7 +100,15 @@ async def general_chat_node(state: GameAgentState) -> dict:
 
     agent_messages = list(messages[:-1]) if len(messages) > 1 else []
     agent_messages.append(HumanMessage(content=user_input))
-    result = await agent.ainvoke({"messages": agent_messages})
+    try:
+        result = await agent.ainvoke({"messages": agent_messages})
+    except Exception as exc:
+        logger.exception("通用对话 agent 失败")
+        return {
+            "final_response": (
+                f"刚才处理时出了点问题（{type(exc).__name__}），可以再说一次吗？"
+            ),
+        }
     response_messages = result.get("messages", [])
     final = response_messages[-1].content if response_messages else ""
 
@@ -108,13 +116,18 @@ async def general_chat_node(state: GameAgentState) -> dict:
 
 
 async def aggregator_node(state: GameAgentState) -> dict:
-    """结果聚合节点"""
+    """结果聚合节点 —— 显式回写 final_response，供 chat_stream 终态采信"""
     response = state.get("final_response", "")
     if response:
         return {
             "messages": [AIMessage(content=response)],
+            "final_response": response,
         }
-    return {"messages": [AIMessage(content="抱歉，我暂时无法处理这个请求。")]}
+    fallback = "抱歉，我暂时无法处理这个请求。"
+    return {
+        "messages": [AIMessage(content=fallback)],
+        "final_response": fallback,
+    }
 
 
 # ===== 路由函数 =====
@@ -177,17 +190,28 @@ def get_graph():
     return deps_get_graph()
 
 
+# 发给 specialist agent 的最近消息条数（更早上下文由 summary 覆盖，避免长会话拖慢每轮）
+HISTORY_KEEP = 8
+
+
 def _build_messages(
     message: str,
     history: list[dict] | None,
     summary: str | None = None,
+    history_keep: int | None = None,
 ) -> list:
-    """将对话历史 + 可选摘要转换为 LangChain 消息列表"""
+    """将对话历史 + 可选摘要转换为 LangChain 消息列表。
+
+    history 默认只保留最近 HISTORY_KEEP 条——router 只看末条，
+    specialist 也不需要整段原文；更早信息靠 summary 注入。
+    """
+    keep = HISTORY_KEEP if history_keep is None else history_keep
     messages = []
     if summary:
         messages.append(SystemMessage(content=summary))
     if history:
-        for h in history:
+        window = history[-keep:] if keep > 0 else history
+        for h in window:
             role = h.get("role", "")
             if role == "user":
                 messages.append(HumanMessage(content=h["content"]))
@@ -225,12 +249,17 @@ async def chat_stream(
         {"type": "done", "response": "..."}       — 流结束，附带完整响应文本
         {"type": "error", "message": "..."}       — 错误
 
+    注意：DeepSeek + create_agent 的最终回复可能不产生 chat_model_stream chunk，
+    只在 on_chat_model_end / 根 chain_end 给完整 content，故需回填 full_response。
+
     Yields:
         事件字典，最终事件为 {"type": "done"} 或 {"type": "error"}
     """
     graph = get_graph()
     messages = _build_messages(message, history, summary=summary)
     full_response: str = ""
+    last_assistant_content: str = ""
+    any_streamed: bool = False
 
     try:
         async for event in graph.astream_events(
@@ -239,18 +268,17 @@ async def chat_stream(
             kind = event["event"]
             name = event.get("name", "")
             metadata = event.get("metadata", {})
+            node = metadata.get("langgraph_node", "")
 
             # ── 进度事件：进入新的 graph 节点 ──
             if kind == "on_chain_start":
-                node = metadata.get("langgraph_node", "")
                 if node in NODE_LABELS:
                     yield {"type": "progress", "node": node}
 
             # ── 新 LLM 调用开始 → UI 清空上一段输出 ──
             if kind == "on_chat_model_start":
                 # 仅在 agent 节点内部（非 Router）发出 clear
-                parent_node = metadata.get("langgraph_node", "")
-                if parent_node and parent_node != "router":
+                if node and node != "router":
                     full_response = ""
                     yield {"type": "clear"}
 
@@ -260,7 +288,33 @@ async def chat_stream(
                 content = getattr(chunk, "content", "")
                 if content:
                     full_response += content
+                    any_streamed = True
                     yield {"type": "token", "content": content}
+
+            # ── 单次 LLM 终态：捕获未流入 stream 的完整回复 ──
+            if kind == "on_chat_model_end" and node != "router":
+                output = event["data"].get("output")
+                content = getattr(output, "content", "") if output is not None else ""
+                if isinstance(content, str) and content:
+                    last_assistant_content = content
+                    if not full_response.strip():
+                        full_response = content
+                        yield {"type": "token", "content": content}
+
+            # ── 图终态：final_response 作为权威结果（覆盖中间工具轮的碎流） ──
+            if kind == "on_chain_end" and not node:
+                output = event["data"].get("output")
+                if isinstance(output, dict):
+                    state_final = output.get("final_response") or ""
+                    if state_final:
+                        last_assistant_content = state_final
+                        full_response = state_final
+
+        # 若整程无 token 流（DeepSeek 工具轮后一次性回填），补发终态全文
+        if last_assistant_content and full_response != last_assistant_content:
+            full_response = last_assistant_content
+        if not any_streamed and full_response:
+            yield {"type": "token", "content": full_response}
 
         yield {"type": "done", "response": full_response}
 

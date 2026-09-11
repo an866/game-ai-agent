@@ -55,7 +55,20 @@ async def run_recommend(state: dict, profile: dict | None = None) -> dict:
         query = f"用户喜欢: {game_name}. {user_input}"
 
     agent_messages = [HumanMessage(content=query)]
-    result = await agent.ainvoke({"messages": agent_messages})
+    try:
+        result = await agent.ainvoke({"messages": agent_messages})
+    except Exception as exc:
+        # 工具超时/外部 API 挂掉时不要让整条流变 error，给可回复的降级文案
+        from loguru import logger
+        logger.exception("推荐 agent 失败")
+        return {
+            "recommend_result": {},
+            "final_response": (
+                f"推荐服务暂时不可用（{type(exc).__name__}），"
+                "可以稍后再试，或直接说你喜欢的游戏类型。"
+            ),
+        }
+
     response_messages = result.get("messages", [])
     final = response_messages[-1].content if response_messages else ""
 

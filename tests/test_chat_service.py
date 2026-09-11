@@ -252,3 +252,130 @@ class TestServiceStateless:
         m2 = ChatService()
         assert m1 is not m2  # 不同实例
         assert m1._compress_llm is None
+
+
+class _FailingSessionFactory:
+    def __call__(self):
+        raise ConnectionError("MySQL down")
+
+
+class _FailingAenterSession:
+    async def __aenter__(self):
+        raise ConnectionError("MySQL down on connect")
+
+    async def __aexit__(self, *args):
+        return False
+
+
+class _FailingAenterFactory:
+    def __call__(self):
+        return lambda: _FailingAenterSession()
+
+
+class TestDbFailureDegrade:
+    """DB 不可用时服务应降级返回，不向上抛"""
+
+    @pytest.mark.asyncio
+    async def test_save_message_returns_false_on_db_error(self):
+        mem = ChatService(session_factory=_FailingSessionFactory())
+        assert await mem.save_message("sid", "user", "hi") is False
+
+    @pytest.mark.asyncio
+    async def test_load_recent_returns_empty_on_db_error(self):
+        mem = ChatService(session_factory=_FailingSessionFactory())
+        assert await mem.load_recent("sid") == []
+
+    @pytest.mark.asyncio
+    async def test_save_profile_returns_false_on_db_error(self):
+        mem = ChatService(session_factory=_FailingSessionFactory())
+        assert await mem.save_profile("sid", {"favorite_genres": "RPG"}) is False
+
+    @pytest.mark.asyncio
+    async def test_save_message_false_when_aenter_raises(self):
+        mem = ChatService(session_factory=_FailingAenterFactory())
+        assert await mem.save_message("sid", "user", "hi") is False
+
+
+class _RaisingLLM:
+    async def ainvoke(self, messages):
+        raise RuntimeError("LLM 500")
+
+
+class _JsonLLM:
+    def __init__(self, content):
+        self.content = content
+
+    async def ainvoke(self, messages):
+        return SimpleNamespace(content=self.content)
+
+
+class TestLlmFailureDegrade:
+    """压缩 / 画像 LLM 失败时应降级，不抛异常"""
+
+    @pytest.mark.asyncio
+    async def test_compress_llm_fail_returns_original(self):
+        mem = ChatService(
+            session_factory=_DummySessionFactory(),
+            llm_factory=lambda role, **kw: _RaisingLLM(),
+        )
+        msgs = [{"role": "user", "content": f"m{i}"} for i in range(10)]
+        compacted, summary = await mem.compress(msgs, recent_keep=3)
+        assert compacted == msgs  # 降级：不压缩
+        assert summary == ""
+
+    @pytest.mark.asyncio
+    async def test_compress_llm_fail_keeps_existing_summary(self):
+        mem = ChatService(
+            session_factory=_DummySessionFactory(),
+            llm_factory=lambda role, **kw: _RaisingLLM(),
+        )
+        msgs = [{"role": "user", "content": f"m{i}"} for i in range(10)]
+        compacted, summary = await mem.compress(
+            msgs, existing_summary="旧摘要", recent_keep=3
+        )
+        assert compacted == msgs
+        assert summary == "旧摘要"
+
+    @pytest.mark.asyncio
+    async def test_extract_profile_invalid_json_returns_empty(self):
+        mem = ChatService(
+            session_factory=_DummySessionFactory(),
+            llm_factory=lambda role, **kw: _JsonLLM("这不是 JSON"),
+        )
+        assert await mem.extract_profile("用户喜欢RPG") == {}
+
+    @pytest.mark.asyncio
+    async def test_extract_profile_empty_summary_skips_llm(self):
+        mem = ChatService(
+            session_factory=_DummySessionFactory(),
+            llm_factory=lambda role, **kw: (_ for _ in ()).throw(
+                AssertionError("空摘要不应调 LLM")
+            ),
+        )
+        assert await mem.extract_profile("") == {}
+
+    @pytest.mark.asyncio
+    async def test_extract_profile_fenced_json(self):
+        mem = ChatService(
+            session_factory=_DummySessionFactory(),
+            llm_factory=lambda role, **kw: _JsonLLM(
+                '```json\n{"favorite_genres": "动作"}\n```'
+            ),
+        )
+        assert await mem.extract_profile("摘要") == {"favorite_genres": "动作"}
+
+    @pytest.mark.asyncio
+    async def test_save_profile_empty_dict_returns_false(self):
+        mem = _service()
+        assert await mem.save_profile("sid", {}) is False
+
+
+class TestProfilePromptFormat:
+    """回归：PROFILE_EXTRACT_PROMPT 含 JSON 花括号，不得被 str.format 当字段名"""
+
+    def test_prompt_format_with_summary(self):
+        from src.services.chat_service import PROFILE_EXTRACT_PROMPT
+
+        prompt = PROFILE_EXTRACT_PROMPT.format(summary="用户喜欢RPG")
+        assert "用户喜欢RPG" in prompt
+        assert '"favorite_genres"' in prompt  # JSON 示例应原样保留

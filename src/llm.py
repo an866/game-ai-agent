@@ -22,10 +22,13 @@ ROLE_TEMPERATURES: dict[str, float] = {
     "profile_extract": 0.0,
 }
 
-# 角色 → streaming 是否开启（精确复刻各 agent 现状）
+# 角色 → streaming 是否开启（面向用户的回复角色全开，降低首字等待体感）
 ROLE_STREAMING: dict[str, bool] = {
     "general": True,
     "recommend": True,
+    "query": True,
+    "price": True,
+    "news": True,
 }
 
 _cache: dict[tuple, ChatOpenAI] = {}
@@ -75,3 +78,9 @@ def get_llm(
 def clear_llm_cache() -> None:
     """清空单例缓存（测试 / settings 重建后使用）"""
     _cache.clear()
+    # 路由链持有 bind 后的 LLM 引用，需一并失效
+    try:
+        from src.agents.router import clear_router_cache
+        clear_router_cache()
+    except Exception:
+        pass

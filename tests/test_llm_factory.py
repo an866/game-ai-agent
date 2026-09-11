@@ -29,14 +29,22 @@ class TestRoles:
         assert ROLE_TEMPERATURES["compress"] == 0.3
         assert ROLE_TEMPERATURES["profile_extract"] == 0.0
 
-    def test_streaming_only_general_and_recommend(self):
+    def test_streaming_enabled_for_user_facing_roles(self):
         assert ROLE_STREAMING.get("general") is True
         assert ROLE_STREAMING.get("recommend") is True
-        assert ROLE_STREAMING.get("query", False) is False
+        assert ROLE_STREAMING.get("query") is True
+        assert ROLE_STREAMING.get("price") is True
+        assert ROLE_STREAMING.get("news") is True
+        # 内部压缩/画像提取不流式
+        assert ROLE_STREAMING.get("compress", False) is False
 
     def test_role_defaults_applied(self):
         llm = get_llm("query")
         assert llm.temperature == 0.3
+        assert llm.streaming is True
+
+    def test_internal_roles_not_streaming(self):
+        llm = get_llm("compress", max_tokens=200)
         assert llm.streaming is False
 
     def test_explicit_overrides(self):

@@ -26,9 +26,10 @@ COMPRESS_SYSTEM_PROMPT = (
     "不要复述对话过程本身。用中文输出。"
 )
 
+# 注意：JSON 示例的花括号必须转义为 {{ }}，否则 str.format 会当成字段名
 PROFILE_EXTRACT_PROMPT = (
     "根据以下对话摘要，提取用户的游戏偏好，严格输出JSON格式，不要包含任何其他文字：\n"
-    '{"favorite_genres":"","favorite_games":"","platforms":"","budget_range":""}\n'
+    '{{"favorite_genres":"","favorite_games":"","platforms":"","budget_range":""}}\n'
     "只提取对话中明确提到的信息，不要推测。没有信息的字段留空字符串。\n"
     "对话摘要:\n{summary}"
 )

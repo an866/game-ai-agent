@@ -1,5 +1,6 @@
 """RSS 订阅工具 —— 拉取和解析游戏新闻 RSS"""
 
+import asyncio
 from typing import Any
 import feedparser
 from bs4 import BeautifulSoup
@@ -45,21 +46,22 @@ class RSSFetchAllTool(GameDataTool):
 
     async def _fetch_all(self) -> list[dict]:
         sources = get_rss_sources()
+        fetch_tool = RSSFetchTool()
 
-        all_articles = []
-        for source in sources:
+        async def _one(source: dict) -> list[dict]:
             try:
-                fetch_tool = RSSFetchTool()
                 articles = await fetch_tool._fetch(source["url"])
                 for a in articles:
                     a["source_name"] = source["name"]
                     a["language"] = source["language"]
-                all_articles.extend(articles)
                 logger.info(f"RSS: {source['name']} → {len(articles)} 篇")
+                return articles
             except Exception as e:
                 logger.warning(f"RSS 拉取失败 [{source['name']}]: {e}")
+                return []
 
-        return all_articles
+        batches = await asyncio.gather(*[_one(s) for s in sources])
+        return [a for batch in batches for a in batch]
 
 
 async def fetch_all_rss_as_documents() -> list[Document]:
