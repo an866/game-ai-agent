@@ -78,10 +78,13 @@ def render_search_panel() -> None:
     if state.get("result_state") == "loading":
         with show_error("搜索失败"):
             with show_loading("搜索中..."):
-                from src.tools.rawg import RAWGGameSearchTool
-                tool = RAWGGameSearchTool()
+                from src.services.game_lookup import search_games
                 params = build_filter_params(state.get("platforms", []), state.get("genres", []))
-                results = run_async_safe(tool._arun(state.get("query", ""), **params))
+                results = run_async_safe(search_games(
+                    state.get("query", ""),
+                    platforms=params.get("platforms"),
+                    genres=params.get("genres"),
+                ))
                 ui_state.set_panel_state("search", {**state, "results": results,
                                                     "result_state": "done"})
                 st.rerun()

@@ -13,13 +13,19 @@ from src.ui.session_state import run_async_safe
 @st.cache_data(ttl=5, show_spinner=False)
 def _load_watchlist(_cache_buster: int = 0) -> list[dict]:
     """加载活跃监控列表（service 失败时返回 []，不会抛）"""
-    return run_async_safe(list_watches())
+    try:
+        return run_async_safe(list_watches(), timeout=15)
+    except Exception:
+        return []
 
 
 @st.cache_data(ttl=5, show_spinner=False)
 def _load_alerts(_cache_buster: int = 0) -> list[dict]:
     """加载未读告警"""
-    return run_async_safe(list_unread_alerts())
+    try:
+        return run_async_safe(list_unread_alerts(), timeout=15)
+    except Exception:
+        return []
 
 
 def watch_rows_to_dicts(rows: list[dict]) -> list[dict]:

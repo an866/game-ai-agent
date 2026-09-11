@@ -55,12 +55,24 @@ def render_news_panel() -> None:
         if news_query and st.button("搜索新闻", type="primary"):
             with show_error("检索失败"):
                 with show_loading("检索中..."):
+                    import asyncio
                     from src.rag.retriever import search_news
                     f = normalize_filters(game_filter, source_filter, days_filter)
-                    docs = run_async_safe(search_news(news_query, k=10,
-                                                      source_filter=f["source"],
-                                                      game_filter=f["game"],
-                                                      days_filter=f["days"]))
+
+                    async def _search():
+                        return await asyncio.wait_for(
+                            search_news(news_query, k=10,
+                                        source_filter=f["source"],
+                                        game_filter=f["game"],
+                                        days_filter=f["days"]),
+                            timeout=12.0,
+                        )
+
+                    try:
+                        docs = run_async_safe(_search(), timeout=20)
+                    except Exception as exc:
+                        logger.warning(f"新闻语义检索失败: {exc}")
+                        docs = []
                     state = {**state, "docs": docs, "query": news_query}
                     ui_state.set_panel_state("news", state)
                     st.rerun()

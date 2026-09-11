@@ -57,33 +57,20 @@ def render_recommend_panel() -> None:
     if st.button("🎯 推荐游戏", type="primary", disabled=not game_input):
         with show_error("推荐失败"):
             with show_loading("搜索推荐中..."):
-                from src.tools.rawg import RAWGGameSearchTool, RAWGGameRecommendationsTool
+                from src.services.game_lookup import recommend_games
 
                 async def _run():
-                    search_query = build_search_query(game_input, user_profile, genre_pref)
-                    results = await RAWGGameSearchTool()._arun(search_query)
-                    recs = []
-                    game_name = None
-                    if results:
-                        game_id = results[0]["id"]
-                        game_name = results[0]["name"]
-                        recs = await RAWGGameRecommendationsTool()._arun(game_id)
-                        if genre_pref:
-                            for rec in recs:
-                                rec["_match_score"] = len(set(genre_pref) & set(rec.get("genres", [])))
-                            recs.sort(key=lambda r: r.get("_match_score", 0), reverse=True)
-                    return results, recs, game_name
+                    # 种子只用用户输入的游戏名；画像不要再拼进 seed query
+                    # （否则 RAWG 会用「用户画像…\n空洞骑士」整串检索，匹配到星空骑士）
+                    return await recommend_games(game_input.strip(), genre_pref=genre_pref)
 
-                results, recs, game_name = run_async_safe(_run())
-                if not results:
-                    st.warning(f"未找到 '{game_input}' 的相关信息")
+                recs, game_name = run_async_safe(_run())
+                if not recs:
+                    st.warning(f"未找到 '{game_input}' 的相关推荐，请换个名称再试")
                 else:
                     st.success(f"基于 **{game_name}** 的推荐:")
-                    if recs:
-                        for i, rec in enumerate(recs):
-                            badge = ""
-                            if rec.get("_match_score", 0) > 0:
-                                badge = f" 🎯匹配度: {'⭐' * min(rec['_match_score'], 3)}"
-                            render_game_card(rec, rank=i + 1, match_badge=badge)
-                    else:
-                        st.info("暂无推荐数据，试试搜索其他游戏")
+                    for i, rec in enumerate(recs):
+                        badge = ""
+                        if rec.get("_match_score", 0) > 0:
+                            badge = f" 🎯匹配度: {'⭐' * min(rec['_match_score'], 3)}"
+                        render_game_card(rec, rank=i + 1, match_badge=badge)

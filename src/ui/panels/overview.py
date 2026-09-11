@@ -1,4 +1,10 @@
-"""概览面板 —— 统计卡 + 快捷入口 + 热门游戏（迁移自 _pages/home.py）"""
+"""概览面板 —— 统计卡 + 快捷入口 + 热门游戏
+
+切换慢的主因：首次 get_doc_count 会拉 HuggingFace 向量模型，
+且 DB/折扣/Steam 在线串行。现已并行 + 单源超时 + 更长 cache。
+"""
+
+import asyncio
 
 import streamlit as st
 
@@ -18,14 +24,28 @@ def normalize_stats(stats: dict) -> dict:
     }
 
 
-@st.cache_data(ttl=120, show_spinner=False)
-def _load_stats(_cache_buster: int = 0) -> dict:
-    return run_async_safe(get_dashboard_stats())
+@st.cache_data(ttl=180, show_spinner=False)
+def _load_overview(_cache_buster: int = 0) -> tuple[dict, list]:
+    """统计 + 热门在线并行加载（一次桥接，避免两次 run_async_safe 叠等）"""
 
+    async def _run():
+        stats, hot = await asyncio.gather(
+            get_dashboard_stats(),
+            get_hot_players(),
+            return_exceptions=True,
+        )
+        if isinstance(stats, Exception):
+            from loguru import logger
+            logger.warning(f"概览 stats 失败: {stats}")
+            stats = {}
+        if isinstance(hot, Exception):
+            from loguru import logger
+            logger.warning(f"概览 hot 失败: {hot}")
+            hot = []
+        return stats, hot
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _load_hot(_cache_buster: int = 0) -> list[dict]:
-    return run_async_safe(get_hot_players())
+    stats, hot = run_async_safe(_run(), timeout=35)
+    return normalize_stats(stats or {}), hot or []
 
 
 def _open_panel(tab: str) -> None:
@@ -44,9 +64,9 @@ def render_overview_panel() -> None:
         st.markdown("### 🏠 概览")
 
     try:
-        stats = normalize_stats(_load_stats())
+        stats, hot = _load_overview()
     except Exception:
-        stats = normalize_stats({})
+        stats, hot = normalize_stats({}), []
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -76,9 +96,8 @@ def render_overview_panel() -> None:
 
     st.divider()
     st.subheader("热门游戏在线")
-    try:
-        hot = _load_hot()
+    if hot:
         for game in hot:
             st.markdown(f"- **{game['name']}** — 在线: {game['players']}")
-    except Exception:
+    else:
         st.info("热门数据暂不可用")
