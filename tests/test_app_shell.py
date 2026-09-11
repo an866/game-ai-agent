@@ -27,9 +27,8 @@ class TestAppShell:
 
     def test_default_tab_is_chat(self):
         at = _run_app()
-        # 默认 tab=chat：主区渲染 chat_panel（会话列 + 聊天区）
-        # （原断言 st.title("💬 AI 对话") 在 Task 9 面板化后移除，改用会话列"➕ 新对话"按钮）
-        assert "➕ 新对话" in [b.label for b in at.button]
+        labels = [b.label for b in at.button]
+        assert any("新对话" in lab for lab in labels)
 
     def test_switch_tab_to_price(self):
         at = _run_app()
@@ -39,25 +38,22 @@ class TestAppShell:
         assert not at.exception
 
     def test_switch_tab_to_overview(self, monkeypatch):
-        """overview 分支无头渲染不崩（Task 10 接入后新增）
+        """overview 分支无头渲染不崩
 
-        数据源打桩：真实 DB/API 在测试环境不可用且带 10s×重试超时，
-        直接跑会拖死 AppTest；打桩仅验证分支渲染路径本身不抛异常。
+        数据源打桩：真实 DB/API 在测试环境不可用且带超时，
+        打桩仅验证分支渲染路径本身不抛异常。
         """
         import src.ui.panels.overview as overview_mod
 
-        monkeypatch.setattr(overview_mod, "_load_stats", lambda: {
-            "watchlist": 3, "alerts": 1, "news_count": 120, "best_deal": "-45%",
-        })
-        monkeypatch.setattr(overview_mod, "_load_hot", lambda: [
-            {"name": "Dota 2", "players": "100"},
-            {"name": "Counter-Strike 2", "players": "-"},
-        ])
+        monkeypatch.setattr(overview_mod, "_load_overview", lambda _cache_buster=0: (
+            {"watchlist": 3, "alerts": 1, "news_count": 120, "best_deal": "-45%"},
+            [{"name": "Dota 2", "players": "100"},
+             {"name": "Counter-Strike 2", "players": "-"}],
+        ))
 
         at = _run_app()
         at.button(key="tab_overview").click().run()
         assert not at.exception
-        # 顶部返回条 + 统计卡（HTML markdown 内） + 热门在线渲染
         assert any("返回对话" in b.label for b in at.button)
         assert any("活跃监控" in m.value for m in at.markdown)
         assert any("Dota 2" in m.value for m in at.markdown)
@@ -105,7 +101,7 @@ class TestAppShell:
         assert any("暂无最新资讯" in i.value for i in at.info)
 
     def test_text_input_submit_triggers_reply(self, monkeypatch):
-        """输入框键入并回车 → 提交 + 流式回复；last_submitted 哨兵防重复提交"""
+        """chat_input 提交 → 入窗 + rerun 后流式回复；last_submitted 按会话防重"""
         import src.agents.graph as graph_mod
 
         async def fake_chat_stream(message, history=None, summary=None):
@@ -117,14 +113,15 @@ class TestAppShell:
         at = AppTest.from_file("src/ui/app.py", default_timeout=60).run()
         assert not at.exception
 
-        # 键入并回车 → 用户气泡 + 流式回复（画面 markdown 气泡各一份）
-        at.text_input(key="chat_input_v2").set_value("测试问题")
+        # 键入并回车 → 写入 pending 并 rerun → 用户气泡 + 流式回复
+        at.chat_input(key="chat_input_v2").set_value("测试问题").run()
+        # pending 路径会 st.rerun()，AppTest 可能需要再 run 一次拿完整画面
         at.run()
         assert not at.exception
         assert any("测试问题" in m.value for m in at.markdown)
         assert any("测试回复" in m.value for m in at.markdown)
 
-        # 再次 run：文本保留在输入框，哨兵阻止重复提交（用户气泡不翻倍）
+        # 再次 run：哨兵阻止重复提交（用户气泡不翻倍）
         at.run()
         assert not at.exception
         assert sum("测试问题" in m.value for m in at.markdown) == 1

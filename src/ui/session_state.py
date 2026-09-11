@@ -10,13 +10,13 @@ import streamlit as st
 from src.utils.async_utils import run_coro_sync
 
 
-def run_async_safe(coro):
+def run_async_safe(coro, timeout: float = 120):
     """在 Streamlit 的同步上下文中安全运行 async 协程。
 
-    实现见 src/utils/async_utils.run_coro_sync —— 单例线程池 +
-    每次新事件循环且不 close（避免 SQLAlchemy 池清理崩溃）。
+    实现见 src/utils/async_utils.run_coro_sync —— 进程级共享事件循环
+    （永不 close；禁止在 loop 内再调本函数）。
     """
-    return run_coro_sync(lambda: coro)
+    return run_coro_sync(lambda: coro, timeout=timeout)
 
 
 def init_chat_sessions():
@@ -37,7 +37,19 @@ def create_chat_session() -> str:
         "summary": None,
     }
     st.session_state["active_session_id"] = sid
+    _reset_chat_input()
     return sid
+
+
+def _reset_chat_input() -> None:
+    """切换/新建会话时清掉输入草稿与 pending，避免串会话"""
+    st.session_state.pop("chat_input_v2", None)
+    st.session_state.pop("_ds_pending_prompt", None)
+    from src.ui import ui_state
+    # last_submitted 按 sid 键控，这里无需清旧键；清空当前活跃的即可
+    sid = st.session_state.get("active_session_id")
+    if sid:
+        ui_state.update_panel_state("chat", {f"last_submitted:{sid}": ""})
 
 
 def get_active_messages() -> list[dict]:
@@ -61,3 +73,4 @@ def add_chat_session_message(role: str, content: str):
 def switch_session(sid: str):
     """切换到指定会话"""
     st.session_state["active_session_id"] = sid
+    _reset_chat_input()

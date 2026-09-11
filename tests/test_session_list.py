@@ -24,3 +24,13 @@ class TestSessionSummaries:
         sessions = {"a": {"title": "T", "messages": [{"role": "user"}, {"role": "assistant"}] * 3, "summary": None}}
         rows = session_list.build_session_rows(sessions, active_id=None)
         assert rows[0]["rounds"] == 3
+
+
+def test_context_menu_module_exports():
+    from src.ui.chat import session_context
+    assert "contextmenu" in session_context._CTX_JS
+    assert "__ctx_delete__" in session_context._CTX_JS or "__ctx_" in session_context._CTX_JS
+    assert "data-sess-id" in session_context.session_row_attrs("abc")
+    # 菜单项齐全
+    for act in ("rename", "pin", "share", "multi", "delete"):
+        assert act in session_context._CTX_JS

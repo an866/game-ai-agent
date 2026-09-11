@@ -1,28 +1,44 @@
-"""消息气泡流 + 流式渲染（保留 stream_sync 管线机制，视觉升级）"""
+"""消息流 —— DeepSeek 网页版形态
+
+- 用户：右侧实心气泡（accent 渐变），HTML 转义
+- 助手：左侧无重气泡，正文走 Streamlit Markdown（表格/列表可渲染）
+- 流式光标用字符 ▌，避免 unsafe_allow_html 注入正文
+"""
 
 import html as _html
 
 import streamlit as st
 
+CURSOR = "▌"
+
+
+def user_bubble_html(content: str) -> str:
+    """用户消息气泡（右对齐、实心、圆角）"""
+    safe = _html.escape(content)
+    return (
+        '<div class="ds-chat-row ds-chat-row-user">'
+        f'  <div class="ds-bubble-user">{safe}</div>'
+        "</div>"
+    )
+
+
+def assistant_markdown(content: str, with_cursor: bool = False) -> str:
+    """助手正文：交给 st.markdown 渲染（无气泡壳）。"""
+    body = content or ""
+    if with_cursor:
+        body = body + CURSOR
+    return body
+
 
 def bubble_html(role: str, content: str, safe_suffix: str = "") -> str:
-    """聊天气泡 HTML（颜色全走 CSS 变量）
+    """兼容入口。
 
-    safe_suffix: 已转义内容之后追加的原始 HTML（如流式光标 span）——
-    该参数不为调用方做转义，调用方负责传入安全内容。
+    user → 气泡 HTML（需 unsafe_allow_html）。
+    assistant → Markdown 正文（safe_suffix 仅追加在文末，调用方保证安全）。
     """
-    safe = _html.escape(content)
     if role == "user":
-        align, bg, grd = "flex-end", "linear-gradient(135deg, var(--accent1), var(--accent2))", "box-shadow: var(--glow);"
-    else:
-        align, bg, grd = "flex-start", "var(--panel-2)", ""
-    return (
-        f'<div style="display:flex; justify-content:{align}; margin:6px 0;">'
-        f'  <div style="max-width:75%; background:{bg}; {grd} color:var(--text);'
-        f'           padding:10px 14px; border-radius:14px; border:1px solid var(--border);'
-        f'           white-space:pre-wrap; word-break:break-word; font-size:14px;">{safe}{safe_suffix}</div>'
-        f'</div>'
-    )
+        return user_bubble_html(content)
+    return assistant_markdown(content) + (safe_suffix or "")
 
 
 def append_token(full: str, chunk: str) -> str:
@@ -30,9 +46,14 @@ def append_token(full: str, chunk: str) -> str:
 
 
 def render_message_list(messages: list[dict]) -> None:
-    """渲染既有消息流（无流式时）"""
+    """渲染既有消息流（用户气泡 + 助手 Markdown）"""
     for m in messages:
-        st.markdown(bubble_html(m["role"], m["content"]), unsafe_allow_html=True)
+        role = m.get("role", "")
+        content = m.get("content", "")
+        if role == "user":
+            st.markdown(user_bubble_html(content), unsafe_allow_html=True)
+        else:
+            st.markdown(assistant_markdown(content) or "抱歉，出错了。")
 
 
 def render_streaming_placeholder() -> tuple[object, object]:
@@ -43,8 +64,5 @@ def render_streaming_placeholder() -> tuple[object, object]:
 
 
 def render_streaming_cursor(output_ph, full_text: str) -> None:
-    """打字光标（动画由 theme.py 注入的 blink keyframes 提供）"""
-    output_ph.markdown(
-        bubble_html("assistant", full_text, safe_suffix='<span style="animation: blink 1s steps(2) infinite;">▌</span>'),
-        unsafe_allow_html=True,
-    )
+    """流式助手正文 + 字符光标"""
+    output_ph.markdown(assistant_markdown(full_text, with_cursor=True))
