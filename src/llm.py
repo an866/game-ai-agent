@@ -42,6 +42,9 @@ def _build(role: str, temperature: float, streaming: bool,
         "base_url": settings.openai_base_url,
         "temperature": temperature,
         "streaming": streaming,
+        # 必须设超时：无 timeout 时 OpenAI 兼容端点挂起会让 UI 永远「正在理解」
+        "timeout": settings.llm_request_timeout,
+        "max_retries": settings.llm_max_retries,
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens

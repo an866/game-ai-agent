@@ -1,6 +1,6 @@
 """消息流 —— DeepSeek 网页版形态
 
-- 用户：右侧实心气泡（accent 渐变），HTML 转义
+- 用户：右侧淡蓝气泡（columns 右栏 + 内联样式，避免 Streamlit 包裹层吃掉 class CSS）
 - 助手：左侧无重气泡，正文走 Streamlit Markdown（表格/列表可渲染）
 - 流式光标用字符 ▌，避免 unsafe_allow_html 注入正文
 """
@@ -11,15 +11,44 @@ import streamlit as st
 
 CURSOR = "▌"
 
+# 用户气泡：内联样式保证在 Streamlit 1.5x 的 emotion 包裹层下仍生效
+_USER_BUBBLE_CSS = (
+    "background:rgba(59,130,246,0.16);"
+    "border:1px solid rgba(59,130,246,0.35);"
+    "padding:10px 16px;"
+    "border-radius:16px 16px 4px 16px;"
+    "white-space:pre-wrap;"
+    "word-break:break-word;"
+    "font-size:14px;"
+    "line-height:1.55;"
+    "margin-left:auto;"
+    "display:inline-block;"
+    "max-width:100%;"
+    "text-align:left;"
+)
+
 
 def user_bubble_html(content: str) -> str:
-    """用户消息气泡（右对齐、实心、圆角）"""
+    """用户消息气泡 HTML（带内联样式，可直接 unsafe_allow_html）"""
     safe = _html.escape(content)
     return (
-        '<div class="ds-chat-row ds-chat-row-user">'
-        f'  <div class="ds-bubble-user">{safe}</div>'
-        "</div>"
+        f'<div style="display:flex;justify-content:flex-end;width:100%;margin:12px 0;">'
+        f'<div class="ds-bubble-user" style="{_USER_BUBBLE_CSS}">{safe}</div>'
+        f"</div>"
     )
+
+
+def render_user_message(content: str) -> None:
+    """用户消息：右栏 + flex 右对齐淡蓝气泡"""
+    safe = _html.escape(content)
+    left, right = st.columns([1, 11], gap="small")
+    with right:
+        st.markdown(
+            f'<div style="display:flex;justify-content:flex-end;width:100%;margin:8px 0;">'
+            f'<div class="ds-bubble-user" style="{_USER_BUBBLE_CSS}">{safe}</div>'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
 
 def assistant_markdown(content: str, with_cursor: bool = False) -> str:
@@ -51,7 +80,7 @@ def render_message_list(messages: list[dict]) -> None:
         role = m.get("role", "")
         content = m.get("content", "")
         if role == "user":
-            st.markdown(user_bubble_html(content), unsafe_allow_html=True)
+            render_user_message(content)
         else:
             st.markdown(assistant_markdown(content) or "抱歉，出错了。")
 

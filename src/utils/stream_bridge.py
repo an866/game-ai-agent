@@ -21,13 +21,14 @@ T = TypeVar("T")
 
 def stream_sync(
     factory: Callable[[], AsyncGenerator[T, None]],
-    timeout: float = 120,
+    timeout: float = 300,
 ) -> Generator[T, None, None]:
     """在共享事件循环上运行异步生成器，通过 Queue 同步消费。
 
     Args:
         factory: 返回异步生成器的可调用对象（lambda 或函数引用）
-        timeout: 等待流中下一个事件的最大秒数，超时后终止
+        timeout: 等待流中下一个事件的最大秒数，超时后终止。
+            工具链（RSS/CheapShark 重试）可能长时间不吐 token，默认放宽到 300s。
 
     Yields:
         异步生成器产出的每一项

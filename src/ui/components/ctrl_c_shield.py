@@ -19,7 +19,7 @@ _SHIELD_JS = r"""
 
   function isCopyShortcut(e) {
     if (!e) return false;
-    if (e.isComposing || e.keyCode === 229) return false; // IME 组字中不拦
+    if (e.isComposing || e.keyCode === 229) return false;
     if (!(e.ctrlKey || e.metaKey)) return false;
     if (e.altKey) return false;
     var k = (e.key || "").toLowerCase();
@@ -38,23 +38,46 @@ _SHIELD_JS = r"""
   window.addEventListener("keydown", onKey, true);
   document.addEventListener("keydown", onKey, true);
 
-  /* 低频轮询关弹窗（避免全页 DOM 监听在每次抖动时跑查询） */
+  function looksLikeClearCache(node) {
+    var t = (node.textContent || "").toLowerCase();
+    return t.indexOf("clear caches") >= 0 || t.indexOf("clear the app") >= 0
+        || t.indexOf("清除缓存") >= 0;
+  }
+
   function killClearCacheDialog() {
-    var nodes = document.querySelectorAll('[data-testid="stClearCacheDialog"]');
-    for (var n = 0; n < nodes.length; n++) {
-      var node = nodes[n];
-      var buttons = node.querySelectorAll("button");
-      for (var i = 0; i < buttons.length; i++) {
-        var label = (buttons[i].textContent || "").trim().toLowerCase();
-        if (label === "cancel" || label === "取消" || label === "close") {
-          buttons[i].click();
-          break;
+    // Streamlit 版本间 testid 不稳定：兼容旧组件层 + 新 Dialog
+    var selectors = [
+      '[data-testid="stClearCacheDialog"]',
+      '[data-testid="stDialog"]',
+      '[role="dialog"]',
+      '[class*="Dialog"]'
+    ];
+    var seen = [];
+    for (var s = 0; s < selectors.length; s++) {
+      var list = document.querySelectorAll(selectors[s]);
+      for (var i = 0; i < list.length; i++) {
+        var node = list[i];
+        if (seen.indexOf(node) >= 0) continue;
+        seen.push(node);
+        if (!looksLikeClearCache(node)) continue;
+        var buttons = node.querySelectorAll("button");
+        for (var b = 0; b < buttons.length; b++) {
+          var label = (buttons[b].textContent || "").trim().toLowerCase();
+          if (label === "cancel" || label === "取消" || label === "close" || label === "×") {
+            try { buttons[b].click(); } catch (e) {}
+            break;
+          }
+        }
+        node.style.setProperty("display", "none", "important");
+        // 遮罩
+        var parent = node.parentElement;
+        if (parent && parent !== document.body) {
+          try { parent.style.setProperty("display", "none", "important"); } catch (e) {}
         }
       }
-      node.style.setProperty("display", "none", "important");
     }
   }
-  setInterval(killClearCacheDialog, 400);
+  setInterval(killClearCacheDialog, 300);
 
   window.__shieldActive = true;
 })();
@@ -64,9 +87,10 @@ _SHIELD_JS = r"""
 _SHIELD_CSS = """
 [data-testid="stClearCacheDialog"] { display: none !important; }
 [data-testid="stClearCacheDialog"] * { display: none !important; }
-/* 输入法：减少输入框所在层的重排闪烁 */
+/* Streamlit 新版 Dialog：按标题隐藏可能误伤其它对话框，仅压 Clear caches 由 JS 处理 */
 [data-testid="stChatInput"] { contain: layout style; }
 """
+
 
 
 def get_shield_css() -> str:

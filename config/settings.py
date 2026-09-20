@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     # 透传给模型请求的推理强度（low/medium/high 或中转自定义值；空则不带）
     llm_reasoning_effort: str = ""
+    # 请求级超时/重试（秒）。不设时端点挂起会让 UI 一直「正在理解」
+    llm_request_timeout: float = 60.0
+    llm_max_retries: int = 1
     embedding_model: str = "text-embedding-3-small"
 
     # ---- 外部 API Keys ----

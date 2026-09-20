@@ -65,7 +65,7 @@ Query Agent (ReAct)
 
 ### .env
 ```
-TAVILY_API_KEY=tvly-dev-...
+TAVILY_API_KEY=tvly-REDACTED
 ```
 
 ### .claude/mcp.json
@@ -76,7 +76,7 @@ TAVILY_API_KEY=tvly-dev-...
       "command": "python",
       "args": ["-m", "src.mcp.web_search_server"],
       "env": {
-        "TAVILY_API_KEY": "tvly-dev-...",
+        "TAVILY_API_KEY": "tvly-REDACTED",
         "PYTHONPATH": "D:/ClaudeAI/game-ai-agent"
       }
     }

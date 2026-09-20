@@ -16,7 +16,7 @@ from src.ui.session_state import (
 )
 from src.ui.chat.message_list import (
     render_message_list, render_streaming_cursor,
-    render_streaming_placeholder, user_bubble_html, assistant_markdown,
+    render_streaming_placeholder, render_user_message, assistant_markdown,
 )
 from src.ui.chat.session_list import render_session_list
 
@@ -192,7 +192,7 @@ def _submit_prompt(prompt_text: str) -> None:
     """提交一条用户消息：入窗 + 持久化 + 即时气泡 + 流式回复"""
     add_chat_session_message("user", prompt_text)
     _after_message(st.session_state.get("active_session_id"), "user", prompt_text)
-    st.markdown(user_bubble_html(prompt_text), unsafe_allow_html=True)
+    render_user_message(prompt_text)
     with st.container():
         _render_streaming_chat(prompt_text, get_active_messages())
 
@@ -231,16 +231,19 @@ def render_chat_panel() -> None:
         history = get_active_messages()
         picked = None
 
-        if pending:
-            # history 尾部已是本条 user；先画旧历史，再画本条 + 流式
-            prior = history[:-1] if history else []
-            render_message_list(prior)
-            st.markdown(user_bubble_html(pending), unsafe_allow_html=True)
-            _render_streaming_chat(pending, history)
-        elif not history:
-            picked = _render_welcome()
-        else:
-            render_message_list(history)
+        # 用 empty 容器包住对话区，避免「欢迎页 + 流式」两套 DOM 同时在场
+        body = st.empty()
+        with body.container():
+            if pending:
+                # history 尾部已是本条 user；先画旧历史，再画本条 + 流式
+                prior = history[:-1] if history else []
+                render_message_list(prior)
+                render_user_message(pending)
+                _render_streaming_chat(pending, history)
+            elif not history:
+                picked = _render_welcome()
+            else:
+                render_message_list(history)
 
         # 建议卡：同一 run 在 chat_input 之前提交，气泡落在对话区
         if picked and not _already_submitted(sid, picked):

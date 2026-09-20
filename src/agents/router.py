@@ -65,20 +65,32 @@ def build_router_chain():
 
     async def route(state: dict) -> dict:
         """路由函数 —— 接收 state，返回更新（async：避免阻塞事件循环）"""
+        import asyncio
+
         messages = state.get("messages", [])
         user_msg = messages[-1].content if messages else ""
 
-        response = await structured_llm.ainvoke([
-            ("system", system_prompt),
-            ("human", user_msg),
-        ])
-        result = _parse_router_decision(response.content)
-
-        return {
-            "intent": result.intent,
-            "game_name": result.game_name or state.get("game_name", ""),
-            "reasoning": result.reasoning,
-        }
+        try:
+            response = await asyncio.wait_for(
+                structured_llm.ainvoke([
+                    ("system", system_prompt),
+                    ("human", user_msg),
+                ]),
+                timeout=45,
+            )
+            result = _parse_router_decision(response.content)
+            return {
+                "intent": result.intent,
+                "game_name": result.game_name or state.get("game_name", ""),
+                "reasoning": result.reasoning,
+            }
+        except Exception as exc:
+            # 路由失败/超时 → 兜底 general，避免 UI 永远停在「正在理解」
+            return {
+                "intent": "general",
+                "game_name": state.get("game_name", ""),
+                "reasoning": f"router 降级: {type(exc).__name__}",
+            }
 
     _cached_route = route
     return route

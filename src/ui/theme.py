@@ -63,6 +63,16 @@ hr { border-color: var(--border); }
 .stTextInput input::placeholder, .stTextArea textarea::placeholder { color: var(--text-dim); }
 /* 复制误触清缓存弹窗：CSS 常驻隐藏（JS 拦截之外的兜底） */
 [data-testid="stClearCacheDialog"] { display: none !important; }
+/* 旧 Streamlit 组件层残留（declare_component 加载失败时的黄条 iframe） */
+iframe[title*="ctrl_c_shield"] { display: none !important; height: 0 !important; }
+/* 防全页发灰：运行中/弹窗 backdrop 不得压暗主内容 */
+.stApp, [data-testid="stMain"], [data-testid="stAppViewContainer"] {
+  opacity: 1 !important;
+  filter: none !important;
+}
+[data-testid="stDecoration"] { pointer-events: none !important; }
+/* 长流式运行时 Streamlit 会保留上一帧 DOM（data-stale）造成重影 —— 直接隐藏 */
+[data-stale="true"] { display: none !important; opacity: 0 !important; height: 0 !important; overflow: hidden !important; }
 /* 侧栏 Tab / 主题按钮：默认安静；当前 tab 用 primary 淡强调 */
 [data-testid="stSidebar"] .stButton > button {
   text-align: left;
@@ -86,21 +96,28 @@ _EXTRA_ANIMATIONS = """
 
 /* ── DeepSeek 风格对话区 ── */
 .ds-chat-row-user {
-  display: flex;
-  justify-content: flex-end;
-  margin: 10px 0;
+  display: flex !important;
+  justify-content: flex-end !important;
+  width: 100%;
+  margin: 12px 0;
 }
 .ds-bubble-user {
   max-width: 72%;
-  background: linear-gradient(135deg, var(--accent1), var(--accent2));
-  color: #fff;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  float: none !important;
+  /* 淡蓝用户气泡（三主题共用；透明度靠 rgba，深浅主题均可读） */
+  background: rgba(59, 130, 246, 0.16);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: var(--text);
   padding: 10px 16px;
   border-radius: 16px 16px 4px 16px;
-  box-shadow: var(--glow);
+  box-shadow: none;
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 14px;
   line-height: 1.55;
+  text-align: left;
 }
 .ds-welcome {
   text-align: center;
@@ -167,10 +184,13 @@ def get_theme_css(theme: str) -> str:
 
 
 def inject_theme(theme: str) -> None:
-    """向页面注入主题 CSS（同一主题只注入一次，避免每轮重插 style 引发 IME 闪烁）"""
+    """向页面注入主题 CSS（同一主题只注入一次，避免每轮重插 style 引发 IME 闪烁）
+
+    用 st.html 而非 st.markdown：<style> 在 1.5x 上更稳定。
+    """
     name = theme if theme in THEME_VARS else DEFAULT_THEME
     if st.session_state.get("_injected_theme") == name:
         return
     css = get_theme_css(name)
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    st.html(f"<style>{css}</style>")
     st.session_state["_injected_theme"] = name

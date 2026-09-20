@@ -4,16 +4,16 @@ from src.ui.chat import message_list
 
 
 class TestUserBubble:
-    def test_user_bubble_right_and_accent(self):
+    def test_user_bubble_right_and_light_blue(self):
         html = message_list.user_bubble_html("你好")
-        assert "ds-chat-row-user" in html
         assert "ds-bubble-user" in html
-        # 配色在 theme CSS 的 .ds-bubble-user（var(--accent1)），HTML 只给结构类
+        assert "justify-content:flex-end" in html
+        assert "rgba(59,130,246" in html  # 淡蓝气泡（内联，不依赖 class CSS）
+        assert "你好" in html
+        # theme 仍保留 class 样式作兜底
         from src.ui import theme
         css = theme.get_theme_css("neon")
         assert ".ds-bubble-user" in css
-        assert "var(--accent1)" in css
-        assert "你好" in html
 
     def test_escape_content(self):
         html = message_list.user_bubble_html("<script>alert(1)</script>")
